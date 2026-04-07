@@ -1,4 +1,4 @@
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, ShieldCheck, Lock, Shield, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 
 const Login = () => {
@@ -7,265 +7,282 @@ const Login = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [isBoarding, setIsBoarding] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [userId, setUserId] = useState(null)
+  const [tempUser, setTempUser] = useState(null)
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError('')
+    const handleSubmit = async (e) => {
+      e.preventDefault()
+      setIsLoading(true)
+      setError('')
 
-    // Authentication logic with redirection
-    setTimeout(() => {
-      if (email === 'admin@ace.edu' && password === 'admin123') {
-        window.location.href = '/admin'
-      } else if (email === 'office@ace.edu' && password === 'office123') {
-        window.location.href = '/office'
-      } else if (email === 'principal@ace.edu' && password === 'principal123') {
-        window.location.href = '/principal'
+    try {
+      const response = await fetch('http://localhost:5000/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        if (data.onboarding) {
+          setUserId(data.id);
+          setTempUser(data);
+          setIsBoarding(true);
+          setIsLoading(false);
+          return;
+        }
+        localStorage.setItem('user', JSON.stringify(data));
+        window.location.href = `/${data.role.toLowerCase()}`;
       } else {
-        setError('Invalid credentials.')
-        setIsLoading(false)
+        setError(data.message || 'Invalid credentials');
+        setIsLoading(false);
       }
-    }, 1200)
+    } catch (err) {
+      setError('Server error. Please try again.');
+      setIsLoading(false);
+    }
+  }
+
+  const handleOnboard = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/users/${userId}/onboard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword })
+      });
+      const data = await response.json();
+      if (data.success) {
+        const finalUser = { ...tempUser, onboarding: false };
+        localStorage.setItem('user', JSON.stringify(finalUser));
+        window.location.href = `/${finalUser.role.toLowerCase()}`;
+      }
+    } catch (err) {
+      setError('Sync failed. Please try again.');
+      setIsLoading(false);
+    }
   }
 
   return (
-    <div className="login-wrapper">
-      {/* Background with Dark Overlay */}
-      <div 
-        className="login-background"
-        style={{ backgroundImage: "url('/college.jpeg')" }}
-      />
-      <div className="login-overlay" />
-      
-      {/* Back Button */}
-      <a href="/" className="back-btn-ghost">
-        <ArrowLeft size={16} />
-        Back to Home
-      </a>
+    <div className="login-container">
+      <div className="top-nav">
+        <a href="/" className="back-link">
+          <ArrowLeft size={16} />
+          <span>Back to home</span>
+        </a>
+      </div>
 
-      <div className="glass-card-container">
-        <div className="card-header">
-          <h2>Sign-In</h2>
-        </div>
-
-        <form className="card-content" onSubmit={handleSubmit}>
-          {error && <p style={{ color: '#fca5a5', fontSize: '13px', textAlign: 'center', margin: '0 0 10px 0' }}>{error}</p>}
-          
-          <div className="form-item">
-            <label>Email</label>
-            <input
-              type="email"
-              placeholder="your.email@example.com"
-              className="glass-input-field"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
-              required
-            />
-          </div>
-
-          <div className="form-item">
-            <label>Password</label>
-            <div className="input-group-relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                className="glass-input-field pr-10"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="input-eye-button"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
+      <div className="login-card card">
+        {!isBoarding ? (
+          <>
+            <div className="login-header" style={{ marginBottom: '2rem' }}>
+              <h1>Welcome Back</h1>
+              <p className="text-muted" style={{ fontSize: '14px' }}>Enter your credentials to access your dashboard</p>
             </div>
-          </div>
 
-          <button
-            type="submit"
-            className="login-action-btn"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
+            <form onSubmit={handleSubmit}>
+              {error && <div className="error-alert">{error}</div>}
+              
+              <div className="form-group">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Email Address</label>
+                <input
+                  id="email"
+                  type="email"
+                  className="input"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                  style={{ height: '48px', borderRadius: '10px' }}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ marginTop: '1.25rem' }}>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    className="input"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                    style={{ paddingRight: '40px', height: '48px', borderRadius: '10px' }}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="eye-toggle"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ width: '100%', marginTop: '2rem', height: '52px', fontWeight: '600', borderRadius: '10px' }}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Processing...' : 'Sign in to Portal'}
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <div className="login-header" style={{ marginBottom: '2rem', textAlign: 'left' }}>
+              <h1 style={{ color: '#0f172a', fontSize: '20px', fontWeight: '700' }}>Account Authority</h1>
+              <p className="text-muted" style={{ fontSize: '14px', lineHeight: '1.5' }}>Synchronize your personal credentials to finalize your institutional authorization.</p>
+            </div>
+
+            <form onSubmit={handleOnboard}>
+              {error && <div className="error-alert" style={{ marginBottom: '1.5rem' }}>{error}</div>}
+              
+              <div className="form-group">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">New Institutional Password</label>
+                <input
+                  type="password"
+                  className="input"
+                  placeholder="Minimum 6 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={isLoading}
+                  style={{ height: '48px', borderRadius: '10px' }}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ marginTop: '1.25rem' }}>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Confirm Institutional Password</label>
+                <input
+                  type="password"
+                  className="input"
+                  placeholder="Re-enter to confirm"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoading}
+                  style={{ height: '48px', borderRadius: '10px' }}
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ width: '100%', marginTop: '2rem', height: '52px', fontWeight: '600', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                disabled={isLoading}
+              >
+                {isLoading ? 'Synchronizing Credentials...' : (
+                  <>
+                    <span>Complete Authorization</span>
+                    <ChevronRight size={18} />
+                  </>
+                )}
+              </button>
+              
+              <p className="text-center text-xs text-slate-400 mt-6 pt-6" style={{ borderTop: '1px solid #f1f5f9' }}>
+                Mandatory institutional security measure for record access.
+              </p>
+            </form>
+          </>
+        )}
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        .login-wrapper {
+        .login-container {
           min-height: 100vh;
-          width: 100%;
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 1rem;
+          background-color: #f8fafc;
+          padding: 24px;
           position: relative;
-          background: #000;
-          overflow: hidden;
-          font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
         }
 
-        .login-background {
+        .top-nav {
           position: absolute;
-          inset: 0;
-          background-size: cover;
-          background-position: center;
-          background-repeat: no-repeat;
-          opacity: 0.75;
-          z-index: 0;
+          top: 32px;
+          left: 32px;
         }
 
-        .login-overlay {
-          position: absolute;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.2);
-          z-index: 1;
-        }
-
-        .back-btn-ghost {
-          position: absolute;
-          top: 1rem;
-          left: 1rem;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          color: white;
-          font-weight: 500;
-          text-decoration: none;
-          background: transparent;
-          border-radius: 0.375rem;
-          z-index: 10;
-          font-size: 0.875rem;
-        }
-
-        @media (min-width: 768px) {
-          .back-btn-ghost {
-            top: 2rem;
-            left: 2rem;
-          }
-        }
-
-        .back-btn-ghost:hover {
-          background: rgba(255, 255, 255, 0.2);
-        }
-
-        .glass-card-container {
+        .login-card {
           width: 100%;
-          max-width: 448px; /* max-w-md */
-          background: rgba(255, 255, 255, 0.2);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          border-radius: 0.75rem;
-          padding: 2.5rem;
-          z-index: 10;
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-          color: white;
+          max-width: 400px;
         }
 
-        .card-header {
+        .login-header {
           text-align: center;
           margin-bottom: 2rem;
         }
 
-        .card-header h2 {
+        .login-header h1 {
           font-size: 1.5rem;
-          font-weight: 700;
-          margin: 0;
+          font-weight: 600;
+          color: #0f172a;
+          margin-bottom: 0.5rem;
         }
 
-        .card-content {
-          display: flex;
-          flex-direction: column;
-          gap: 1.25rem;
-        }
-
-        .form-item {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .form-item label {
+        .error-alert {
+          background: #fef2f2;
+          color: #991b1b;
+          padding: 10px;
+          border-radius: 6px;
           font-size: 0.875rem;
-          font-weight: 500;
-          color: white;
+          margin-bottom: 1rem;
+          text-align: center;
+          border: 1px solid #fee2e2;
         }
 
-        .input-group-relative {
-          position: relative;
-          display: flex;
-          align-items: center;
-        }
-
-        .glass-input-field {
-          width: 100%;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 0.375rem;
-          padding: 0.6rem 0.8rem;
-          color: white;
-          font-size: 0.875rem;
-          outline: none;
-          box-sizing: border-box;
-        }
-
-        .glass-input-field:focus {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.3);
-        }
-
-        .glass-input-field::placeholder {
-          color: rgba(255, 255, 255, 0.8);
-        }
-
-        .input-eye-button {
+        .eye-toggle {
           position: absolute;
           right: 12px;
+          top: 50%;
+          transform: translateY(-50%);
           background: none;
           border: none;
-          color: rgba(255, 255, 255, 0.6);
+          color: #94a3b8;
           cursor: pointer;
           display: flex;
-          align-items: center;
           padding: 0;
-          z-index: 5;
         }
 
-        .input-eye-button:hover {
-          color: white;
+        .login-footer {
+          margin-top: 2rem;
+          text-align: center;
+          border-top: 1px solid #f1f5f9;
+          padding-top: 1.5rem;
         }
 
-        .login-action-btn {
-          width: 100%;
-          background: white;
-          color: #0f172a; /* slate-900 */
-          border: none;
-          border-radius: 0.375rem;
-          padding: 0.75rem;
-          font-weight: 700;
+        .back-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          color: #64748b;
+          text-decoration: none;
           font-size: 0.875rem;
-          cursor: pointer;
-          margin-top: 1rem;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+          transition: color 0.2s;
         }
 
-        .login-action-btn:hover {
-          background: rgba(255, 255, 255, 0.9);
+        .back-link:hover {
+          color: #0f172a;
         }
-
-        .login-action-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .pr-10 { padding-right: 2.5rem; }
       `}} />
     </div>
   )

@@ -1,588 +1,1337 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, Users, UserCog, Database, Settings, BookOpen, Bell, Search, LogOut, ChevronRight, Plus, Trash2, Upload, X, Download, FileSpreadsheet, Check, Eye, Edit } from 'lucide-react'
+import { LayoutDashboard, Users, UserCog, Database, Settings, LogOut, ChevronRight, Plus, Trash2, Upload, X, Search, FileText, Download, CheckCircle2, AlertCircle, Eye, Edit, Filter, RotateCcw } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('Students')
+  const [activeTab, setActiveTab] = useState('Overview')
   const [students, setStudents] = useState([])
+  const [records, setRecords] = useState([])
   const [users, setUsers] = useState([])
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showBulkModal, setShowBulkModal] = useState(false)
   const [showUserModal, setShowUserModal] = useState(false)
-  const [showViewModal, setShowViewModal] = useState(null)
-  const [viewedRecord, setViewedRecord] = useState(null)
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [uploadData, setUploadData] = useState([])
+  const [uploadErrors, setUploadErrors] = useState([])
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [selectedStudent, setSelectedStudent] = useState(null)
+  const [showUserViewModal, setShowUserViewModal] = useState(false)
+  const [selectedUser, setSelectedUser] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [bulkStep, setBulkStep] = useState('upload') // upload, confirm
-  const [bulkData, setBulkData] = useState([])
-  const [bulkFile, setBulkFile] = useState(null)
-  const [selectedBulkIds, setSelectedBulkIds] = useState(new Set())
-  const [newRecord, setNewRecord] = useState({ registerNo: '', admissionNo: '', umisNo: '', name: '', fatherName: '', nationalityReligionCaste: '', dob: '', dateOfAdmission: '', course: '', branch: '', mediumOfInstruction: 'English', batchStart: '', batchEnd: '' })
-  const [newUser, setNewUser] = useState({ name: '', role: 'Office', username: '', email: '' })
-  const [currentPageStudents, setCurrentPageStudents] = useState(1)
-  const [currentPageUsers, setCurrentPageUsers] = useState(1)
+  const [isEditingUser, setIsEditingUser] = useState(false)
+  const [studentSearch, setStudentSearch] = useState('')
+  const [recordSearch, setRecordSearch] = useState('')
+  const [uploadSearch, setUploadSearch] = useState('')
+  const [studentPage, setStudentPage] = useState(1)
+  const [recordPage, setRecordPage] = useState(1)
+  const [userPage, setUserPage] = useState(1)
+  const [recentPage, setRecentPage] = useState(1)
   const rowsPerPage = 10
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterCriteria, setFilterCriteria] = useState({ course: '', branch: '', batch: '' })
+  const [uploadFilter, setUploadFilter] = useState('All') // All, Ready, Error
+  const [newRecord, setNewRecord] = useState({ 
+    registerNo: '', admissionNo: '', umisNo: '', name: '', 
+    fatherName: '', nationality: 'Indian', religion: '', caste: '',
+    dob: '', dateOfAdmission: '', course: '', branch: '', 
+    mediumOfInstruction: 'English', batchStart: '', batchEnd: '' 
+  })
+  const [newUser, setNewUser] = useState({ name: '', role: 'Office', username: '', email: '' })
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('ace_students') || '[]')
-    setStudents(saved)
-    const savedUsers = JSON.parse(localStorage.getItem('ace_users') || '[]')
-    if (savedUsers.length === 0) {
-      const defaults = [
-        { id: 'U1', name: 'Principal Dr. S. K.', role: 'Principal', username: 'principal', status: 'Active' },
-        { id: 'U2', name: 'Office Registrar', role: 'Office', username: 'office', status: 'Active' },
-      ]
-      setUsers(defaults)
-      localStorage.setItem('ace_users', JSON.stringify(defaults))
-    } else {
-      setUsers(savedUsers)
-    }
+    fetchStudents();
+    fetchRecords();
+    fetchUsers();
   }, [])
 
-  const handleAddSubmit = (e) => {
-    e.preventDefault()
-    let updated;
-    if (isEditing) {
-      updated = students.map(s => s.id === newRecord.id ? newRecord : s)
-    } else {
-      updated = [...students, { ...newRecord, id: 'ST' + Date.now() }]
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/users');
+      const data = await response.json();
+      setUsers(data);
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
     }
-    setStudents(updated)
-    localStorage.setItem('ace_students', JSON.stringify(updated))
-    setShowAddModal(false)
-    setIsEditing(false)
-    setNewRecord({ registerNo: '', admissionNo: '', umisNo: '', name: '', fatherName: '', nationalityReligionCaste: '', dob: '', dateOfAdmission: '', course: '', branch: '', mediumOfInstruction: 'English', batchStart: '', batchEnd: '' })
   }
 
-  const handleEditStudent = (student) => {
-    setNewRecord(student)
-    setIsEditing(true)
-    setShowAddModal(true)
-  }
-
-  const deleteStudent = (id) => {
-    const updated = students.filter(s => s.id !== id)
-    setStudents(updated)
-    localStorage.setItem('ace_students', JSON.stringify(updated))
-  }
-
-  const handleAddUserSubmit = (e) => {
-    e.preventDefault()
-    let updated;
-    if (isEditing) {
-      updated = users.map(u => u.id === newUser.id ? { ...newUser, password: newUser.password || 'password123' } : u)
-    } else {
-      updated = [...users, { ...newUser, id: 'U' + Date.now(), status: 'Active', password: 'password123' }]
+  const fetchRecords = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/certificates');
+      const data = await response.json();
+      setRecords(data);
+    } catch (err) {
+      console.error('Failed to fetch records:', err);
     }
-    setUsers(updated)
-    localStorage.setItem('ace_users', JSON.stringify(updated))
-    setShowUserModal(false)
-    setIsEditing(false)
-    setNewUser({ name: '', role: 'Office', username: '', email: '' })
   }
 
-  const handleEditUser = (user) => {
-    setNewUser(user)
-    setIsEditing(true)
-    setShowUserModal(true)
+  const fetchStudents = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/students');
+      const data = await response.json();
+      setStudents(data);
+    } catch (err) {
+      console.error('Failed to fetch students:', err);
+    }
   }
 
-  const deleteUser = (id) => {
-    const updated = users.filter(u => u.id !== id)
-    setUsers(updated)
-    localStorage.setItem('ace_users', JSON.stringify(updated))
+  useEffect(() => { setStudentPage(1); }, [studentSearch])
+  useEffect(() => { setRecordPage(1); }, [recordSearch])
+  useEffect(() => { setUserPage(1); }, [uploadSearch])
+
+  const Pagination = ({ totalItems, currentPage, onPageChange }) => {
+    const totalPages = Math.ceil(totalItems / rowsPerPage);
+    if (totalPages <= 1) return null;
+
+    const renderPageNumbers = () => {
+      const pages = [];
+      if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+      } else {
+        if (currentPage <= 4) {
+          pages.push(1, 2, 3, 4, 5, '...', totalPages);
+        } else if (currentPage >= totalPages - 3) {
+          pages.push(1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+        } else {
+          pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages);
+        }
+      }
+      return pages;
+    };
+
+    return (
+      <div className="pagination" style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '24px' }}>
+        {renderPageNumbers().map((p, i) => (
+          <button 
+            key={i} 
+            className={`page-btn ${p === currentPage ? 'active' : ''}`}
+            disabled={p === '...'}
+            style={{ 
+              width: '42px', height: '42px', borderRadius: '12px', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: p === currentPage ? '#2563eb' : '#f8fafc',
+              color: p === currentPage ? 'white' : '#64748b',
+              border: p === '...' ? 'none' : '1px solid #e2e8f0',
+              fontWeight: '700', cursor: p === '...' ? 'default' : 'pointer',
+              fontSize: '0.875rem',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: p === currentPage ? '0 10px 15px -3px rgba(37, 99, 235, 0.2)' : 'none'
+            }}
+            onClick={() => p !== '...' && onPageChange(p)}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const handleResetPassword = async (id) => {
+    if (!window.confirm('SECURITY ALERT: Are you sure you want to reset this staff member\'s credentials to the institutional default (password123)?')) return;
+    try {
+      const response = await fetch(`http://localhost:5000/api/users/${id}/reset`, { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        alert('Credentials restored to default (password123). Onboarding check cleared.');
+        fetchUsers();
+      }
+    } catch (err) {
+      console.error('Failed to reset password:', err);
+    }
   }
 
-  const handleBulkSimulate = () => {
-    const dummyImport = [
-      { id: 'B1', registerNo: '21CS005', name: 'James Wilson', course: 'B.Tech', branch: 'IT', batchStart: '2021', batchEnd: '2025' },
-      { id: 'B2', registerNo: '21CS001', name: 'Duplicate Record', course: 'B.Tech', branch: 'CS', batchStart: '2021', batchEnd: '2025' }, // Duplicate
-      { id: 'B3', registerNo: '21CS012', name: 'Sarah Parker', course: 'B.E', branch: 'ECE', batchStart: '2021', batchEnd: '2025' },
-    ]
-    setBulkData(dummyImport)
-    const initialSelected = new Set(dummyImport.map(d => d.id))
-    setSelectedBulkIds(initialSelected)
-    setBulkStep('confirm')
+  const handleUserSubmit = async (e) => {
+    e.preventDefault();
+    const url = isEditingUser 
+      ? `http://localhost:5000/api/users/${newUser.id}` 
+      : 'http://localhost:5000/api/users';
+    const method = isEditingUser ? 'PUT' : 'POST';
+    
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      });
+      const data = await response.json();
+      if (data.success) {
+        setShowUserModal(false);
+        setIsEditingUser(false);
+        setNewUser({ name: '', email: '', role: 'Office', username: '' });
+        fetchUsers();
+      }
+    } catch (err) {
+      console.error('Failed to save user:', err);
+    }
   }
 
-  const confirmBulkImport = () => {
-    const toAdd = bulkData.filter(d => selectedBulkIds.has(d.id) && !students.some(s => s.registerNo === d.registerNo))
-    const updated = [...students, ...toAdd.map(d => ({ ...d, id: 'ST' + Math.random().toString(36).substr(2, 9) }))]
-    setStudents(updated)
-    localStorage.setItem('ace_students', JSON.stringify(updated))
-    setShowBulkModal(false)
-    setBulkStep('upload')
+  const handleAddSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const method = isEditing ? 'PUT' : 'POST';
+      const url = isEditing 
+        ? `http://localhost:5000/api/students/${newRecord.id}`
+        : 'http://localhost:5000/api/students';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newRecord)
+      });
+      const data = await response.json();
+      if (data.success) {
+        fetchStudents();
+        setShowAddModal(false);
+        setNewRecord({ 
+          registerNo: '', admissionNo: '', umisNo: '', name: '', 
+          fatherName: '', nationality: 'Indian', religion: '', caste: '',
+          dob: '', dateOfAdmission: '', course: '', branch: '', 
+          mediumOfInstruction: 'English', batchStart: '', batchEnd: '' 
+        });
+      }
+    } catch (err) {
+      console.error('Failed to save student:', err);
+    }
+  }
+
+  const downloadTemplate = () => {
+    const data = [{
+      registerNo: '21CS101', name: 'John Doe', fatherName: 'Father Name', 
+      nationality: 'Indian', religion: 'Hindu', caste: 'General',
+      admissionNo: 'A123', umisNo: 'U456', dob: '2003-01-01', 
+      dateOfAdmission: '2021-08-15', course: 'B.Tech', branch: 'Computer Science', 
+      mediumOfInstruction: 'English', batchStart: '2021', batchEnd: '2025'
+    }];
+    const ws = XLSX.utils.json_to_sheet(data, { 
+      header: [
+        "registerNo", "name", "fatherName", "nationality", "religion", "caste",
+        "admissionNo", "umisNo", "dob", "dateOfAdmission", "course", "branch",
+        "mediumOfInstruction", "batchStart", "batchEnd"
+      ] 
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "ACE_Student_Template.xlsx");
+  }
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (f) => {
+      const data = new Uint8Array(f.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(sheet);
+      
+      const validated = json.map(row => {
+        const errors = [];
+        if (!row.registerNo) errors.push('Missing Reg No');
+        if (!row.name) errors.push('Missing Name');
+        if (!row.course) errors.push('Missing Course');
+        if (!row.branch) errors.push('Missing Branch');
+        if (!row.batchStart || !row.batchEnd) errors.push('Missing Batch Years');
+        return { ...row, errors };
+      });
+
+      setUploadData(validated);
+      setShowUploadModal(true);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  const handleBulkSubmit = async () => {
+    const validData = uploadData.filter(r => r.errors.length === 0);
+    if (validData.length === 0) return alert('No valid records to upload');
+    try {
+      const response = await fetch('http://localhost:5000/api/students/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validData)
+      });
+      const data = await response.json();
+      if (data.success) {
+        fetchStudents();
+        setShowUploadModal(false);
+        setUploadData([]);
+        alert(`Successfully imported ${data.count} students`);
+      }
+    } catch (err) {
+      console.error('Failed to bulk upload:', err);
+    }
+  }
+
+  const handleDeleteStudent = async (id) => {
+    if (!window.confirm('CRITICAL: Are you sure you want to permanently delete this institutional student record? This action cannot be undone.')) return;
+    try {
+      const response = await fetch(`http://localhost:5000/api/students/${id}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (data.success) fetchStudents();
+    } catch (err) {
+      console.error('Failed to delete student:', err);
+    }
+  }
+
+  const handleDeleteUser = async (id) => {
+    if (!window.confirm('CRITICAL: Are you sure you want to permanently revoke authorization for this staff member? This action cannot be undone.')) return;
+    try {
+      const response = await fetch(`http://localhost:5000/api/users/${id}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (data.success) fetchUsers();
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+    }
   }
 
   return (
-    <div className="dashboard-container">
+    <div className="admin-layout">
+      {/* Sidebar */}
       <aside className="sidebar">
-        <div className="sidebar-brand"><BookOpen className="brand-icon" /><span>ACE Admin</span></div>
-        <nav className="sidebar-nav">
-          {['Dashboard', 'Students', 'Users', 'Records', 'Settings'].map((name) => (
-            <button key={name} onClick={() => setActiveTab(name)} className={`nav-item ${activeTab === name ? 'active' : ''}`}>
-              {name === 'Dashboard' && <LayoutDashboard size={18} />}
-              {name === 'Students' && <Users size={18} />}
-              {name === 'Users' && <UserCog size={18} />}
-              {name === 'Records' && <Database size={18} />}
-              {name === 'Settings' && <Settings size={18} />}
-              <span>{name}</span>
-            </button>
-          ))}
+        <div className="brand">
+          <Database size={24} className="text-primary" />
+          <span>ACE Admin</span>
+        </div>
+        
+        <nav className="nav">
+          <button onClick={() => setActiveTab('Overview')} className={`nav-link ${activeTab === 'Overview' ? 'active' : ''}`}>
+            <LayoutDashboard size={18} />
+            <span>Overview</span>
+          </button>
+          <button onClick={() => setActiveTab('Students')} className={`nav-link ${activeTab === 'Students' ? 'active' : ''}`}>
+            <Users size={18} />
+            <span>Students</span>
+          </button>
+          <button onClick={() => setActiveTab('Records')} className={`nav-link ${activeTab === 'Records' ? 'active' : ''}`}>
+            <Database size={18} />
+            <span>Records</span>
+          </button>
+          <button onClick={() => setActiveTab('Users')} className={`nav-link ${activeTab === 'Users' ? 'active' : ''}`}>
+            <UserCog size={18} />
+            <span>Staff Users</span>
+          </button>
+          <button onClick={() => setActiveTab('Settings')} className={`nav-link ${activeTab === 'Settings' ? 'active' : ''}`}>
+            <Settings size={18} />
+            <span>Settings</span>
+          </button>
         </nav>
+
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={() => window.location.href = '/'}>
-            <LogOut size={20} /><span>Logout</span>
+            <LogOut size={18} />
+            <span>Logout</span>
           </button>
         </div>
       </aside>
 
-      <main className="main-content">
-        <header className="dashboard-header-compact">
-          <div className="header-breadcrumbs">
-            <span className="crumb">Portal</span> <ChevronRight size={14} /> <span className="crumb active">{activeTab}</span>
+      {/* Main Content */}
+      <main className="content">
+        <header className="content-header">
+          <div className="breadcrumb">
+            <span className="text-muted">Portal</span>
+            <ChevronRight size={14} className="text-muted" />
+            <span className="font-medium">{activeTab}</span>
           </div>
-          <div className="header-actions">
-            <div className="user-profile-small">
-              <div className="profile-img-small">AD</div>
-              <div className="profile-info-compact">
-                <span className="p-name">System Admin</span>
-              </div>
-            </div>
+          <div className="header-user">
+            <div className="avatar">AD</div>
+            <span className="font-medium">System Administrator</span>
           </div>
         </header>
 
-        <section className="view-content">
-          {activeTab === 'Students' ? (
-            <div className="content-table-view">
-              <div className="table-header-complex">
-                <div className="table-header-top-row">
-                  <h3>Database Records</h3>
-                  <div className="table-header-controls">
-                    <div className="compact-search-box">
-                      <Search size={16} />
-                      <input type="text" placeholder={`Search names or numbers...`} />
-                    </div>
-                    <div className="action-buttons-group">
-                      <button className="bulk-btn" onClick={() => setShowBulkModal(true)}><Upload size={16} /> Bulk</button>
-                      <button className="add-primary-btn" onClick={() => setShowAddModal(true)}><Plus size={16} /> Add Student</button>
-                    </div>
-                  </div>
+        <div className="scroll-area">
+          {activeTab === 'Overview' && (
+            <div className="overview-grid">
+              <div className="stat-card card">
+                <div className="stat-icon"><Users className="text-primary" /></div>
+                <div className="stat-info">
+                  <span className="text-muted font-small">Total Students</span>
+                  <h2 className="stat-value">{students.length}</h2>
                 </div>
-                
-                <div className="table-header-filter-row">
-                  <div className="filter-group-flex">
-                    <select className="filter-select-small"><option>All Batches</option><option>2021-2025</option><option>2020-2024</option></select>
-                    <select className="filter-select-small"><option>All Branches</option><option>B.E</option><option>B.Tech</option><option>M.Tech</option></select>
-                    <select className="filter-select-small"><option>All Courses</option><option>CSE</option><option>IT</option><option>ECE</option><option>EEE</option><option>Mechanical</option></select>
-                    <select className="filter-select-small"><option>All Genders</option><option>Male</option><option>Female</option></select>
-                    
-                    <div className="reg-no-range-filter">
-                      <span className="range-lbl">Reg No:</span>
-                      <input type="text" placeholder="Start" className="range-input" />
-                      <span>-</span>
-                      <input type="text" placeholder="End" className="range-input" />
+              </div>
+              <div className="stat-card card">
+                <div className="stat-icon"><UserCog className="text-primary" /></div>
+                <div className="stat-info">
+                  <span className="text-muted font-small">System Users</span>
+                  <h2 className="stat-value">{users.length}</h2>
+                </div>
+              </div>
+              <div className="stat-card card">
+                <div className="stat-icon"><FileText className="text-primary" /></div>
+                <div className="stat-info">
+                  <span className="text-muted font-small">Pending Reports</span>
+                  <h2 className="stat-value">0</h2>
+                </div>
+              </div>
+              
+              <div className="recent-activity card" style={{ gridColumn: 'span 3' }}>
+                <h3 className="mb-4">System Activity</h3>
+                <div className="activity-list">
+                  <div className="activity-item">
+                    <div className="dot"></div>
+                    <div className="activity-body">
+                      <p className="font-medium">Admin Database Initialized</p>
+                      <span className="text-muted font-small">System established successfully</span>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="dummy-table">
-                <div className="row student-header">
-                  <span>Reg No</span>
-                  <span>Name</span>
-                  <span>Course</span>
-                  <span>Branch</span>
-                  <span>Batch</span>
-                  <span>Actions</span>
-                </div>
-                {students.slice((currentPageStudents - 1) * rowsPerPage, currentPageStudents * rowsPerPage).map((s) => (
-                  <div key={s.id} className="row student-row">
-                    <span>{s.registerNo}</span>
-                    <span className="font-bold">{s.name}</span>
-                    <span>{s.course}</span>
-                    <span>{s.branch}</span>
-                    <span>{s.batchStart} - {s.batchEnd}</span>
-                    <div className="table-actions-cell">
-                      <button className="action-icon-btn view" onClick={() => { setViewedRecord(s); setShowViewModal('student'); }} title="View"><i className="fa-solid fa-eye" style={{ fontSize: '11px' }}></i></button>
-                      <button className="action-icon-btn edit" onClick={() => handleEditStudent(s)} title="Edit"><i className="fa-solid fa-pen-to-square" style={{ fontSize: '11px' }}></i></button>
-                      <button className="action-icon-btn delete" onClick={() => deleteStudent(s.id)} title="Delete"><i className="fa-solid fa-trash-can" style={{ fontSize: '11px' }}></i></button>
-                    </div>
-                  </div>
-                ))}
-                {students.length === 0 && <p className="empty-msg">No students enrolled yet.</p>}
-              </div>
-              {students.length > 0 && (
-                <div className="table-pagination-footer">
-                  <div className="pagination-info">
-                    Showing {Math.min(students.length, (currentPageStudents - 1) * rowsPerPage + 1)} to {Math.min(students.length, currentPageStudents * rowsPerPage)} of {students.length} entries
-                  </div>
-                  <div className="pagination-controls">
-                    <button className="pag-btn" disabled={currentPageStudents === 1} onClick={() => setCurrentPageStudents(p => p - 1)}><i className="fa-solid fa-chevron-left"></i></button>
-                    {Array.from({ length: Math.ceil(students.length / rowsPerPage) }).map((_, i) => (
-                      <button key={i} className={`pag-btn ${currentPageStudents === i + 1 ? 'active' : ''}`} onClick={() => setCurrentPageStudents(i + 1)}>{i + 1}</button>
-                    ))}
-                    <button className="pag-btn" disabled={currentPageStudents >= Math.ceil(students.length / rowsPerPage)} onClick={() => setCurrentPageStudents(p => p + 1)}><i className="fa-solid fa-chevron-right"></i></button>
-                  </div>
-                </div>
-              )}
             </div>
-          ) : activeTab === 'Users' ? (
-            <div className="content-table-view">
-              <div className="table-header-complex">
-                <div className="table-header-top-row">
-                  <h3>Internal User Accounts</h3>
-                  <div className="table-header-controls">
-                    <div className="compact-search-box">
-                      <Search size={16} />
-                      <input type="text" placeholder={`Search by name...`} />
-                    </div>
-                    <div className="action-buttons-group">
-                      <button className="add-primary-btn" onClick={() => setShowUserModal(true)}><Plus size={18} /> Add User</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="dummy-table">
-                <div className="row user-header">
-                  <span>Full Name</span>
-                  <span>Username</span>
-                  <span>Portal Permission</span>
-                  <span>Email Address</span>
-                  <span>Actions</span>
-                </div>
-                {users.slice((currentPageUsers - 1) * rowsPerPage, currentPageUsers * rowsPerPage).map((u) => (
-                  <div key={u.id} className="row user-row">
-                    <span className="font-bold">{u.name}</span>
-                    <span className="user-tag">@{u.username}</span>
-                    <div className="role-badge-cell">
-                      <span className={`role-badge ${u.role.toLowerCase()}`}>{u.role}</span>
-                    </div>
-                    <span>{u.email || 'N/A'}</span>
-                    <div className="table-actions-cell">
-                      <button className="action-icon-btn view" onClick={() => { setViewedRecord(u); setShowViewModal('user'); }} title="View"><i className="fa-solid fa-eye" style={{ fontSize: '11px' }}></i></button>
-                      <button className="action-icon-btn edit" onClick={() => handleEditUser(u)} title="Edit"><i className="fa-solid fa-pen-to-square" style={{ fontSize: '11px' }}></i></button>
-                      <button className="action-icon-btn delete" onClick={() => deleteUser(u.id)} title="Delete"><i className="fa-solid fa-trash-can" style={{ fontSize: '11px' }}></i></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {users.length > 0 && (
-                <div className="table-pagination-footer">
-                  <div className="pagination-info">
-                    Showing {Math.min(users.length, (currentPageUsers - 1) * rowsPerPage + 1)} to {Math.min(users.length, currentPageUsers * rowsPerPage)} of {users.length} entries
-                  </div>
-                  <div className="pagination-controls">
-                    <button className="pag-btn" disabled={currentPageUsers === 1} onClick={() => setCurrentPageUsers(p => p - 1)}><i className="fa-solid fa-chevron-left"></i></button>
-                    {Array.from({ length: Math.ceil(users.length / rowsPerPage) }).map((_, i) => (
-                      <button key={i} className={`pag-btn ${currentPageUsers === i + 1 ? 'active' : ''}`} onClick={() => setCurrentPageUsers(i + 1)}>{i + 1}</button>
-                    ))}
-                    <button className="pag-btn" disabled={currentPageUsers >= Math.ceil(users.length / rowsPerPage)} onClick={() => setCurrentPageUsers(p => p + 1)}><i className="fa-solid fa-chevron-right"></i></button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="placeholder-view">Select "Students" tab to manage records.</div>
           )}
-        </section>
-      </main>
 
-      {/* Bulk Upload Modal */}
-      {showBulkModal && (
-        <div className="modal-overlay">
-          <div className="modal-container-fixed">
-            <div className="modal-header-fixed">
-              <h2>Bulk Record Import</h2>
-              <button className="close-action-flex" onClick={() => {setShowBulkModal(false); setBulkStep('upload');}}><X size={16} /><span>Close</span></button>
-            </div>
-            
-            {bulkStep === 'upload' ? (
-              <div className="modal-form-wrapper">
-                <div className="modal-scroll-area">
-                  <div className="bulk-upload-dropzone">
-                    <FileSpreadsheet size={48} className="drop-icon" />
-                    <h4>{bulkFile ? bulkFile.name : 'Select Excel File'}</h4>
-                    <p>{bulkFile ? 'File verified. Click process to continue.' : 'Formats supported: .xlsx, .csv'}</p>
-                    
-                    <div className="bulk-actions-row">
-                      <button className="template-download-btn"><Download size={14} /> Template</button>
-                      <button className="file-select-primary" onClick={() => document.getElementById('bulk-file-input').click()}>
-                        <Plus size={16} /> Choose File
-                      </button>
-                      <input id="bulk-file-input" type="file" hidden onChange={(e) => setBulkFile(e.target.files[0])} accept=".xlsx,.csv" />
-                    </div>
+          {activeTab === 'Students' && (
+            <div className="data-view card">
+              <div className="view-header mb-4">
+                <h2>Student Records</h2>
+                <div className="header-actions">
+                  <div className="search-input">
+                    <Search size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search students..." 
+                      value={studentSearch} 
+                      onChange={e => setStudentSearch(e.target.value)} 
+                    />
                   </div>
-                </div>
-                <div className="modal-footer-static">
-                  <button className="confirm-btn-large" disabled={!bulkFile} onClick={handleBulkSimulate}>Process Dataset</button>
-                </div>
-              </div>
-            ) : (
-              <div className="modal-form-wrapper">
-                <div className="modal-scroll-area">
-                  <div className="bulk-preview-info">
-                    <Check size={18} />
-                    <span>Dataset processed successfully. Review collisions below.</span>
-                  </div>
-                  <div className="preview-table">
-                    <div className="p-row p-header">
-                      <input type="checkbox" checked={selectedBulkIds.size === bulkData.length} onChange={() => setSelectedBulkIds(selectedBulkIds.size === bulkData.length ? new Set() : new Set(bulkData.map(d => d.id)))} />
-                      <span>Reg No</span>
-                      <span>Name</span>
-                      <span>Status</span>
-                    </div>
-                    {bulkData.map((d) => {
-                      const isDup = students.some(s => s.registerNo === d.registerNo)
-                      return (
-                        <div key={d.id} className={`p-row ${isDup ? 'is-duplicate' : ''}`}>
-                          <input type="checkbox" checked={selectedBulkIds.has(d.id)} onChange={() => {
-                            const next = new Set(selectedBulkIds)
-                            next.has(d.id) ? next.delete(d.id) : next.add(d.id)
-                            setSelectedBulkIds(next)
-                          }} />
-                          <span className={isDup ? 'strikethrough' : ''}>{d.registerNo}</span>
-                          <span className={isDup ? 'strikethrough' : ''}>{d.name}</span>
-                          <span className="status-label">{isDup ? 'Exists (Duplicate)' : 'Ready'}</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div className="modal-footer-static">
-                  <button className="confirm-btn-large" onClick={confirmBulkImport}>Confirm {selectedBulkIds.size} Records</button>
+                  <button 
+                    className={`btn ${showFilters ? 'btn-primary' : ''}`} 
+                    style={{ border: showFilters ? 'none' : '1px solid #e2e8f0', background: showFilters ? '#2563eb' : 'white', color: showFilters ? 'white' : '#64748b' }}
+                    onClick={() => setShowFilters(!showFilters)}
+                  >
+                    <Filter size={16} />
+                    <span>Filter</span>
+                  </button>
+                  <button className="btn" style={{ border: '1px solid #e2e8f0' }} onClick={downloadTemplate}>
+                    <Download size={16} />
+                    <span>Template</span>
+                  </button>
+                  <label className="btn" style={{ border: '1px solid #e2e8f0', cursor: 'pointer' }}>
+                    <Upload size={16} />
+                    <span>Bulk Upload</span>
+                    <input type="file" hidden accept=".xlsx, .xls" onChange={handleFileSelect} />
+                  </label>
+                  <button className="btn btn-primary" onClick={() => { setIsEditing(false); setShowAddModal(true); }}>
+                    <Plus size={16} />
+                    <span>New Student</span>
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* View Record Modal */}
-      {showViewModal && viewedRecord && (
-        <div className="modal-overlay">
-          <div className="modal-container-fixed" style={{ maxWidth: '450px' }}>
-            <div className="modal-header-fixed">
-              <h2>Data Profile</h2>
-              <button className="close-action-flex" onClick={() => setShowViewModal(null)}><X size={16} /><span>Close</span></button>
-            </div>
-            <div className="modal-form-wrapper">
-              <div className="modal-scroll-area">
-                <div className="view-data-grid">
-                  {Object.entries(viewedRecord).filter(([k]) => k !== 'id' && k !== 'password').map(([key, val]) => (
-                    <div className="view-data-row" key={key}>
-                      <span className="v-lbl">{key.replace(/([A-Z])/g, ' $1').toUpperCase()}</span>
-                      <span className="v-val">{val || 'N/A'}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Student Modal */}
-      {showAddModal && (
-        <div className="modal-overlay">
-          <div className="modal-container-fixed">
-            <div className="modal-header-fixed">
-              <h2>{isEditing ? 'Modify Student File' : 'Student Enrollment Form'}</h2>
-              <button className="close-action-flex" onClick={() => { setShowAddModal(false); setIsEditing(false); setNewRecord({ registerNo: '', admissionNo: '', umisNo: '', name: '', fatherName: '', nationalityReligionCaste: '', dob: '', dateOfAdmission: '', course: '', branch: '', mediumOfInstruction: 'English', batchStart: '', batchEnd: '' }); }}><span>Close</span><X size={16} /></button>
-            </div>
-            <form onSubmit={handleAddSubmit} className="modal-form-wrapper">
-              <div className="modal-scroll-area">
-                <div className="form-grid-layout">
-                  <div className="input-field"><label>Register Number</label><input value={newRecord.registerNo} onChange={e => setNewRecord({...newRecord, registerNo: e.target.value})} placeholder="21CS001" required /></div>
-                  <div className="input-field"><label>Admission Number</label><input value={newRecord.admissionNo} onChange={e => setNewRecord({...newRecord, admissionNo: e.target.value})} placeholder="ADM10293" required /></div>
-                  <div className="input-field col-span-2"><label>UMIS Number</label><input value={newRecord.umisNo} onChange={e => setNewRecord({...newRecord, umisNo: e.target.value})} placeholder="Unique Management Information System Number" required /></div>
-                  <div className="input-field col-span-2"><label>Full Name</label><input value={newRecord.name} onChange={e => setNewRecord({...newRecord, name: e.target.value})} placeholder="As per official documents" required /></div>
-                  <div className="input-field col-span-2"><label>Father's Name</label><input value={newRecord.fatherName} onChange={e => setNewRecord({...newRecord, fatherName: e.target.value})} placeholder="Legal father's name" required /></div>
-                  <div className="input-field col-span-2"><label>Nationality, Religion and Caste</label><input value={newRecord.nationalityReligionCaste} onChange={e => setNewRecord({...newRecord, nationalityReligionCaste: e.target.value})} placeholder="e.g. Indian, Hindu, ABC" required /></div>
-                  <div className="input-field"><label>Date of Birth</label><input type="date" value={newRecord.dob} onChange={e => setNewRecord({...newRecord, dob: e.target.value})} required /></div>
-                  <div className="input-field"><label>Date of Admission</label><input type="date" value={newRecord.dateOfAdmission} onChange={e => setNewRecord({...newRecord, dateOfAdmission: e.target.value})} required /></div>
-                  <div className="input-field"><label>Course</label><input value={newRecord.course} onChange={e => setNewRecord({...newRecord, course: e.target.value})} placeholder="e.g. B.Tech" required /></div>
-                  <div className="input-field"><label>Branch</label><input value={newRecord.branch} onChange={e => setNewRecord({...newRecord, branch: e.target.value})} placeholder="e.g. IT" required /></div>
-                  <div className="input-field"><label>Medium of Instruction</label><select value={newRecord.mediumOfInstruction} onChange={e => setNewRecord({...newRecord, mediumOfInstruction: e.target.value})}><option>English</option><option>Tamil</option></select></div>
-                  <div className="input-field"><label>Batch Range</label><div className="batch-input-row"><input value={newRecord.batchStart} onChange={e => setNewRecord({...newRecord, batchStart: e.target.value})} placeholder="YYYY" /><span>-</span><input value={newRecord.batchEnd} onChange={e => setNewRecord({...newRecord, batchEnd: e.target.value})} placeholder="YYYY" /></div></div>
-                </div>
-              </div>
-              <div className="modal-footer-static">
-                <button type="submit" className="confirm-btn-large">{isEditing ? 'Commit Modifications' : 'Enroll Student'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* User Management Modal */}
-      {showUserModal && (
-        <div className="modal-overlay">
-          <div className="modal-container-fixed" style={{ maxWidth: '450px' }}>
-            <div className="modal-header-fixed">
-              <h2>{isEditing ? 'Update Corporate Account' : 'Add Corporate Account'}</h2>
-              <button className="close-action-flex" onClick={() => { setShowUserModal(false); setIsEditing(false); setNewUser({ name: '', role: 'Office', username: '', email: '' }); }}><X size={16} /><span>Close</span></button>
-            </div>
-            <form onSubmit={handleAddUserSubmit} className="modal-form-wrapper">
-              <div className="modal-scroll-area">
-                <div className="form-grid-layout" style={{ gridTemplateColumns: '1fr' }}>
-                  <div className="input-field"><label>Full Name</label><input value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} placeholder="e.g. Dr. Ramesh Babu" required /></div>
-                  <div className="input-field"><label>Portal Role</label>
-                    <select value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
-                      <option value="Office">Office Support</option>
-                      <option value="Principal">Executive Principal</option>
+              {showFilters && (
+                <div className="filter-row mb-6 mt-4" style={{ background: '#f8fafc', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', alignItems: 'end' }}>
+                  <div className="form-group mb-0">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block tracking-wider">Course</label>
+                    <select className="input" style={{ height: '44px', borderRadius: '10px' }} value={filterCriteria.course} onChange={e => setFilterCriteria({...filterCriteria, course: e.target.value})}>
+                      <option value="">All Courses</option>
+                      {[...new Set(students.map(s => s.course))].filter(Boolean).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
-                  <div className="input-field"><label>Username</label><input value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} placeholder="office_support" required /></div>
-                  <div className="input-field"><label>Email Address</label><input type="email" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="user@adhiyamaan.in" required /></div>
+                  <div className="form-group mb-0">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block tracking-wider">Branch</label>
+                    <select className="input" style={{ height: '44px', borderRadius: '10px' }} value={filterCriteria.branch} onChange={e => setFilterCriteria({...filterCriteria, branch: e.target.value})}>
+                      <option value="">All Branches</option>
+                      {[...new Set(students.map(s => s.branch))].filter(Boolean).map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group mb-0">
+                    <label className="text-xs font-bold text-slate-500 uppercase mb-2 block tracking-wider">Batch Period</label>
+                    <select className="input" style={{ height: '44px', borderRadius: '10px' }} value={filterCriteria.batch} onChange={e => setFilterCriteria({...filterCriteria, batch: e.target.value})}>
+                      <option value="">All Batches</option>
+                      {[...new Set(students.map(s => `${s.batchStart}-${s.batchEnd}`))].filter(b => b !== '-').map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <button className="btn hover-bg-slate" style={{ background: '#f1f5f9', color: '#475569', height: '44px', borderRadius: '10px' }} onClick={() => setFilterCriteria({ course: '', branch: '', batch: '' })}>
+                    <RotateCcw size={16} />
+                    <span>Reset Filter</span>
+                  </button>
+                </div>
+              )}
+
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Reg No</th>
+                    <th>Name</th>
+                    <th>Course & Branch</th>
+                    <th>Batch</th>
+                    <th className="text-center" style={{ width: '140px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students
+                    .filter(s => {
+                      const matchesSearch = (s.name || '').toLowerCase().includes(studentSearch.toLowerCase()) || (s.registerNo || '').toLowerCase().includes(studentSearch.toLowerCase());
+                      const matchesCourse = !filterCriteria.course || s.course === filterCriteria.course;
+                      const matchesBranch = !filterCriteria.branch || s.branch === filterCriteria.branch;
+                      const matchesBatch = !filterCriteria.batch || `${s.batchStart}-${s.batchEnd}` === filterCriteria.batch;
+                      return matchesSearch && matchesCourse && matchesBranch && matchesBatch;
+                    })
+                    .slice((studentPage - 1) * rowsPerPage, studentPage * rowsPerPage)
+                    .map(s => (
+                    <tr key={s.id}>
+                      <td className="font-medium">{s.registerNo}</td>
+                      <td className="font-medium">{s.name}</td>
+                      <td>{s.course} - {s.branch}</td>
+                      <td>{s.batchStart}-{s.batchEnd}</td>
+                      <td className="text-center">
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button 
+                            className="icon-btn hover-bg-blue" 
+                            style={{ color: '#3b82f6', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onClick={() => { setSelectedStudent(s); setShowViewModal(true); }}
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button 
+                            className="icon-btn hover-bg-amber" 
+                            style={{ color: '#d97706', background: 'rgba(217, 119, 6, 0.05)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onClick={() => { setNewRecord(s); setIsEditing(true); setShowAddModal(true); }}
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button 
+                            className="icon-btn hover-bg-red" 
+                            style={{ color: '#dc2626', background: 'rgba(220, 38, 38, 0.05)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onClick={() => handleDeleteStudent(s.id)}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {students.filter(s => (s.name || '').toLowerCase().includes(studentSearch.toLowerCase()) || (s.registerNo || '').toLowerCase().includes(studentSearch.toLowerCase())).length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="empty-row">No student records found</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <Pagination 
+                totalItems={students.filter(s => (s.name || '').toLowerCase().includes(studentSearch.toLowerCase()) || (s.registerNo || '').toLowerCase().includes(studentSearch.toLowerCase())).length} 
+                currentPage={studentPage} 
+                onPageChange={setStudentPage} 
+              />
+            </div>
+          )}
+
+          {activeTab === 'Records' && (
+            <div className="data-view card">
+              <div className="view-header mb-4">
+                <h2>Issued Certificates</h2>
+                <div className="header-actions">
+                  <div className="search-input">
+                    <Search size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search history..." 
+                      value={recordSearch}
+                      onChange={e => setRecordSearch(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="modal-footer-static">
-                <button type="submit" className="confirm-btn-large">{isEditing ? 'Establish Identity Changes' : 'Create Internal Account'}</button>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '140px' }}>Reg No</th>
+                    <th>Name</th>
+                    <th style={{ width: '150px' }}>Issue Date</th>
+                    <th style={{ width: '180px' }}>Authorization</th>
+                    <th style={{ width: '120px', textAlign: 'right' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records
+                    .filter(r => (r.name || '').toLowerCase().includes(recordSearch.toLowerCase()) || (r.reg || '').toLowerCase().includes(recordSearch.toLowerCase()))
+                    .slice((recordPage - 1) * rowsPerPage, recordPage * rowsPerPage)
+                    .map((r, i) => (
+                    <tr key={i}>
+                      <td className="font-medium">{r.reg}</td>
+                      <td className="font-medium">{r.name}</td>
+                      <td>{r.date}</td>
+                      <td className="font-small" style={{ color: '#64748b' }}>{r.auth}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="status-badge-clean">{r.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                  {records.filter(r => (r.name || '').toLowerCase().includes(recordSearch.toLowerCase()) || (r.reg || '').toLowerCase().includes(recordSearch.toLowerCase())).length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="empty-row">No records matching your search scope.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <Pagination 
+                totalItems={records.filter(r => (r.name || '').toLowerCase().includes(recordSearch.toLowerCase()) || (r.reg || '').toLowerCase().includes(recordSearch.toLowerCase())).length} 
+                currentPage={recordPage} 
+                onPageChange={setRecordPage} 
+              />
+            </div>
+          )}
+
+          {activeTab === 'Users' && (
+            <div className="data-view card">
+              <div className="view-header mb-4">
+                <h2>Staff Management</h2>
+                <div className="header-actions">
+                  <button className="btn btn-primary" onClick={() => setShowUserModal(true)}>
+                    <UserCog size={16} />
+                    <span> Add User</span>
+                  </button>
+                </div>
               </div>
-            </form>
-          </div>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Full Name</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th className="text-center" style={{ width: '120px' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users
+                    .filter(u => (u.name || '').toLowerCase().includes(uploadSearch.toLowerCase()) || (u.username || '').toLowerCase().includes(uploadSearch.toLowerCase()))
+                    .slice((userPage - 1) * rowsPerPage, userPage * rowsPerPage)
+                    .map(u => (
+                    <tr key={u.id}>
+                      <td className="font-medium">{u.name}</td>
+                      <td>{u.username}</td>
+                      <td>{u.email}</td>
+                      <td><span className={`role-badge ${u.role.toLowerCase()}`}>{u.role}</span></td>
+                      <td className="text-center">
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button 
+                            className="icon-btn hover-bg-blue" 
+                            style={{ color: '#3b82f6', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onClick={() => { setSelectedUser(u); setShowUserViewModal(true); }}
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button 
+                            className="icon-btn hover-bg-amber" 
+                            style={{ color: '#d97706', background: 'rgba(217, 119, 6, 0.05)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onClick={() => { setNewUser(u); setIsEditingUser(true); setShowUserModal(true); }}
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button 
+                            className="icon-btn hover-bg-red" 
+                            style={{ color: '#dc2626', background: 'rgba(220, 38, 38, 0.05)', borderRadius: '8px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onClick={() => { if(confirm('Are you sure you want to delete this user?')) handleDeleteUser(u.id); }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {users.filter(u => (u.name || '').toLowerCase().includes(uploadSearch.toLowerCase()) || (u.username || '').toLowerCase().includes(uploadSearch.toLowerCase())).length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="empty-row">No users found matching your query.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <Pagination 
+                totalItems={users.filter(u => (u.name || '').toLowerCase().includes(uploadSearch.toLowerCase()) || (u.username || '').toLowerCase().includes(uploadSearch.toLowerCase())).length} 
+                currentPage={userPage} 
+                onPageChange={setUserPage} 
+              />
+            </div>
+          )}
+
+          {activeTab === 'Settings' && (
+            <div className="card" style={{ maxWidth: '600px' }}>
+              <h2 className="mb-4">System Settings</h2>
+              <div className="form-group mb-4">
+                <label>Institution Name</label>
+                <input type="text" className="input" defaultValue="ACE College of Engineering" />
+              </div>
+              <div className="form-group mb-4">
+                <label>Primary Contact Email</label>
+                <input type="email" className="input" defaultValue="support@ace.edu" />
+              </div>
+              <div className="form-group mb-4">
+                <label>Default TC Prefix</label>
+                <input type="text" className="input" defaultValue="ACE/TC/" />
+              </div>
+              <button className="btn btn-primary">Save Changes</button>
+            </div>
+          )}
         </div>
-      )}
+      </main>
+
 
       <style dangerouslySetInnerHTML={{ __html: `
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        .dashboard-container { display: flex; height: 100vh; width: 100vw; background: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
-        .sidebar { width: 260px; min-width: 260px; background: white; color: #1e293b; display: flex; flex-direction: column; padding: 24px 16px; border-right: 1px solid #e2e8f0; }
-        .sidebar-brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 800; margin-bottom: 32px; color: #0284c7; padding-left: 8px; }
-        .sidebar-nav { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-        .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: transparent; border: none; border-radius: 10px; color: #64748b; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s; text-align: left; width: 100%; }
-        .nav-item:hover { background: #f8fafc; color: #1e293b; }
-        .nav-item.active { background: #f0f9ff; color: #0284c7; }
-        .logout-btn { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #fef2f2; color: #ef4444; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; transition: 0.2s; }
-        .logout-btn:hover { background: #fee2e2; }
-        .main-content { flex: 1; display: flex; flex-direction: column; background: #f8fafc; height: 100vh; overflow-y: auto; overflow-x: hidden; position: relative; }
-        .dashboard-header-compact { display: flex; align-items: center; justify-content: space-between; padding: 0 40px; background: white; border-bottom: 1px solid #e2e8f0; min-height: 60px; position: sticky; top: 0; z-index: 50; width: 100%; }
-        .header-breadcrumbs { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #94a3b8; white-space: nowrap; }
-        .crumb.active { color: #1e293b; font-weight: 700; }
-        .header-actions { display: flex; align-items: center; gap: 24px; min-width: max-content; }
-        .user-profile-small { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
-        .profile-img-small { width: 36px; height: 36px; min-width: 36px; background: #334155; color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; }
-        .profile-info-compact { display: flex; flex-direction: column; text-align: left; }
-        .p-name { font-size: 14px; font-weight: 800; color: #0f172a; line-height: 1.2; }
-        .p-role { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
-        .view-content { padding: 32px 40px; width: 100%; max-width: 100%; }
-        .content-table-view { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: 100%; overflow: hidden; }
-        .table-header-complex { display: flex; flex-direction: column; background: #fff; border-bottom: 1px solid #e2e8f0; }
-        .table-header-top-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; border-bottom: 1px solid #f1f5f9; min-height: 64px; gap: 20px; }
-        .table-header h3 { font-size: 16px; font-weight: 800; color: #1e293b; margin: 0; white-space: nowrap; }
-        .table-header-controls { display: flex; align-items: center; gap: 12px; }
-        .table-header-filter-row { padding: 8px 24px; background: #fbfcfd; border-bottom: 1px solid #f1f5f9; }
-        .filter-group-flex { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .filter-select-small { padding: 6px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff; font-size: 12px; font-weight: 600; color: #475569; outline: none; cursor: pointer; min-width: 110px; transition: 0.2s; }
-        .filter-select-small:hover { border-color: #38bdf8; background: #f0f9ff; }
-        .reg-no-range-filter { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #64748b; margin-left: auto; }
-        .range-input { width: 70px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 12px; outline: none; transition: 0.2s; background: #fff; }
-        .range-input:focus { border-color: #38bdf8; background: #f0f9ff; }
-        .compact-search-box { display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 8px 14px; border-radius: 8px; border: 1px solid #e2e8f0; width: 100%; min-width: 260px; }
-        .compact-search-box input { border: none; background: transparent; outline: none; font-size: 13px; width: 100%; color: #1e293b; }
-        .action-buttons-group { display: flex; gap: 8px; }
-        .bulk-btn { display: flex; align-items: center; gap: 6px; background: white; border: 1px solid #e2e8f0; color: #475569; padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; }
-        .add-primary-btn { display: flex; align-items: center; gap: 6px; background: #38bdf8; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 4px rgba(56, 189, 248, 0.2); }
-        .dummy-table { width: 100%; display: flex; flex-direction: column; }
-        .row { display: grid; grid-template-columns: 120px 1.5fr 1fr 1fr 140px 86px; padding: 12px 24px; border-bottom: 1px solid #f1f5f9; font-size: 13px; align-items: center; width: 100%; color: #475569; }
-        .row.student-header { background: #f8fafc; font-weight: 700; color: #64748b; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; height: 46px; }
-        .row.student-row { transition: 0.15s; }
-        .row.student-row:hover { background: #f8fafc; }
-        .font-bold { font-weight: 700; color: #1e293b; font-size: 14px; }
-        
-        .table-actions-cell { display: flex; gap: 4px; justify-content: flex-end; align-items: center; }
-        .action-icon-btn {
-          font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          scrollbar-width: thin;
-          box-sizing: border-box;
-          margin: 0;
-          padding: 14px 14px;
-          font-weight: 600;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
-          width: 26px;
-          height: 26px;
+        .admin-layout {
+          display: flex;
+          height: 100vh;
+          background: #f8fafc;
+        }
+
+        .sidebar {
+          width: 240px;
+          background: #ffffff;
+          border-right: 1px solid #e2e8f0;
+          display: flex;
+          flex-direction: column;
+          padding: 24px 0;
+        }
+
+        .brand {
+          padding: 0 24px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 32px;
+          font-weight: 700;
+          font-size: 1.125rem;
+          color: #0f172a;
+        }
+
+        .nav {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          padding: 0 12px;
+        }
+
+        .nav-link {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 12px;
           border-radius: 6px;
-          border: 1px solid transparent;
+          color: #64748b;
+          font-weight: 500;
+          font-size: 0.875rem;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: left;
+        }
+
+        .nav-link:hover {
+          background: #f1f5f9;
+          color: #0f172a;
+        }
+
+        .nav-link.active {
+          background: #eff6ff;
+          color: #2563eb;
+        }
+
+        .sidebar-footer {
+          padding: 0 12px;
+          margin-top: auto;
+        }
+
+        .logout-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 12px;
+          border-radius: 6px;
+          color: #ef4444;
+          font-weight: 500;
+          font-size: 0.875rem;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .logout-btn:hover {
+          background: #fef2f2;
+        }
+
+        .content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        .content-header {
+          height: 64px;
+          background: #ffffff;
+          border-bottom: 1px solid #e2e8f0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 32px;
+          flex-shrink: 0;
+        }
+
+        .breadcrumb {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.875rem;
+        }
+
+        .header-user {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .avatar {
+          width: 32px;
+          height: 32px;
+          background: #2563eb;
+          color: #ffffff;
+          border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          cursor: pointer;
-          transition: 0.2s;
+          font-size: 0.75rem;
+          font-weight: 700;
         }
-        
-        .action-icon-btn.view { background: #ecfeff; color: #0891b2; border-color: #cffafe; }
-        .action-icon-btn.view:hover { background: #cffafe; transform: translateY(-1px); }
-        
-        .action-icon-btn.edit { background: #eff6ff; color: #2563eb; border-color: #dbeafe; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
-        .action-icon-btn.edit:hover { background: #dbeafe; transform: translateY(-1px); }
-        
-        .action-icon-btn.delete { background: #fef2f2; color: #dc2626; border-color: #fee2e2; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2); }
-        .action-icon-btn.delete:hover { background: #fee2e2; transform: translateY(-1px); }
-        
-        .action-icon-btn svg { stroke-width: 2.5px; }
-        
-        .empty-msg { padding: 48px; text-align: center; color: #94a3b8; font-size: 14px; width: 100%; }
 
-        /* User Table Specifics */
-        .row.user-header, .row.user-row { grid-template-columns: 1.5fr 1.2fr 1.2fr 1.5fr 86px; }
-        .user-tag { color: #0284c7; font-weight: 700; font-size: 12px; }
-        .role-badge-cell { display: flex; align-items: center; }
-        .role-badge { padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
-        .role-badge.office { background: #ecfdf5; color: #059669; }
-        .role-badge.principal { background: #eef2ff; color: #4338ca; }
-        .status-online { color: #22c55e; font-size: 12px; font-weight: 700; white-space: nowrap; }
+        .scroll-area {
+          flex: 1;
+          padding: 32px;
+          overflow-y: auto;
+        }
 
-        /* Modal Specifics */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
-        .modal-container-fixed { background: white; width: 100%; max-width: 700px; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; max-height: 85vh; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); border: 1px solid #e2e8f0; }
-        .modal-header-fixed { padding: 16px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-        .modal-header-fixed h2 { font-size: 17px; font-weight: 800; color: #0f172a; margin: 0; }
-        .close-action-flex { background: #f1f5f9; border: none; padding: 6px 12px; border-radius: 8px; display: flex; align-items: center; gap: 8px; cursor: pointer; color: #64748b; font-size: 11px; font-weight: 800; text-transform: uppercase; transition: 0.2s; }
-        .modal-form-wrapper { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; width: 100%; }
-        .modal-scroll-area { padding: 24px; overflow-y: auto; overflow-x: hidden; flex-grow: 1; width: 100%; }
-        .form-grid-layout { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: 100%; }
-        .input-field { display: flex; flex-direction: column; gap: 4px; width: 100%; }
-        .input-field.col-span-2 { grid-column: span 2; }
-        .input-field label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; }
-        .input-field input, .input-field select { padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 13px; outline: none; transition: 0.2s; }
-        .batch-input-row { display: flex; align-items: center; gap: 8px; }
-        .batch-input-row input { flex: 1; text-align: center; }
-        .modal-footer-static { padding: 16px 24px; border-top: 1px solid #f1f5f9; background: #fff; flex-shrink: 0; }
-        .confirm-btn-large { width: 100%; background: #0f172a; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 14px; cursor: pointer; transition: 0.2s; }
-        .confirm-btn-large:hover { background: #1e293b; transform: translateY(-1px); }
+        .overview-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 24px;
+        }
+
+        .stat-card {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 24px;
+        }
+
+        .stat-icon {
+          width: 48px;
+          height: 48px;
+          background: #f0f7ff;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .stat-value {
+          font-size: 1.5rem;
+          font-weight: 700;
+          color: #0f172a;
+          margin: 4px 0 0;
+        }
+
+        .font-small { font-size: 0.75rem; }
+        .font-medium { font-weight: 500; }
         
-        /* Bulk Upload Specifics */
-        .bulk-upload-dropzone { border: 2px dashed #e2e8f0; border-radius: 16px; padding: 40px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; background: #f8fafc; cursor: pointer; transition: 0.2s; }
-        .bulk-upload-dropzone:hover { border-color: #38bdf8; background: #f0f9ff; }
-        .drop-icon { color: #94a3b8; }
-        .bulk-actions-row { display: flex; gap: 12px; margin-top: 12px; }
-        .file-select-primary { display: flex; align-items: center; gap: 8px; background: #0f172a; color: white; padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
-        .confirm-btn-large:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
-        .template-download-btn { display: flex; align-items: center; gap: 8px; background: white; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; color: #0284c7; cursor: pointer; }
-        .bulk-preview-info { display: flex; align-items: center; gap: 10px; background: #f0fdf4; border: 1px solid #bbfcce; border-radius: 10px; padding: 10px 16px; margin-bottom: 20px; color: #166534; font-size: 13px; font-weight: 600; }
-        .preview-table { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
-        .p-row { display: grid; grid-template-columns: 40px 100px 1fr 120px; padding: 10px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; align-items: center; }
-        .p-header { background: #f8fafc; font-weight: 800; color: #64748b; font-size: 11px; text-transform: uppercase; }
-        .strikethrough { text-decoration: line-through; opacity: 0.5; }
-        .is-duplicate { background: #fff1f2; }
-        .status-label { font-size: 11px; font-weight: 800; text-transform: uppercase; background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 6px; text-align: center; }
-        .is-duplicate .status-label { background: #fee2e2; color: #ef4444; }
-        .placeholder-view { padding: 80px; text-align: center; color: #94a3b8; border: 2px dashed #e2e8f0; border-radius: 24px; }
-        .view-data-grid { display: flex; flex-direction: column; gap: 4px; }
-        .view-data-row { display: grid; grid-template-columns: 140px 1fr; padding: 10px; border-bottom: 1px dotted #e2e8f0; font-size: 13px; align-items: start; }
-        .v-lbl { font-weight: 800; color: #64748b; font-size: 10.5px; opacity: 0.8; }
-        .v-val { font-weight: 700; color: #0f172a; word-break: break-all; }
+        .activity-list {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
 
-        /* Pagination Refinement */
-        .table-pagination-footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: #fff; border-top: 1px solid #f1f5f9; min-height: 58px; box-sizing: border-box; }
-        .pagination-info { font-size: 11px; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
-        .pagination-controls { display: flex; align-items: center; gap: 6px; }
-        .pag-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); font-size: 12px; font-weight: 800; }
-        .pag-btn:hover:not(:disabled) { border-color: #0284c7; color: #0284c7; background: #f0f9ff; transform: translateY(-1px); }
-        .pag-btn.active { background: #0284c7; color: #fff; border-color: #0284c7; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.25); }
-        .pag-btn:disabled { opacity: 0.3; cursor: not-allowed; background: #f8fafc; }
-        .pag-btn i { font-size: 10px; }
+        .activity-item {
+          display: flex;
+          gap: 16px;
+        }
+
+        .dot {
+          width: 8px;
+          height: 8px;
+          background: #2563eb;
+          border-radius: 50%;
+          margin-top: 6px;
+        }
+
+        .view-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .header-actions {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .search-input {
+          display: flex;
+          align-items: center;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          padding: 0 12px;
+          width: 280px;
+          height: 40px;
+        }
+
+        .search-input svg { color: #94a3b8; }
+        .search-input input {
+          border: none;
+          background: transparent;
+          padding: 8px;
+          font-size: 0.875rem;
+          outline: none;
+          width: 100%;
+        }
+
+        .data-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 1rem;
+        }
+
+        .data-table th {
+          text-align: left;
+          padding: 12px;
+          border-bottom: 2px solid #f1f5f9;
+          font-size: 0.75rem;
+          text-transform: uppercase;
+          color: #64748b;
+          letter-spacing: 0.05em;
+        }
+
+        .data-table td {
+          padding: 16px 12px;
+          border-bottom: 1px solid #f1f5f9;
+          font-size: 0.875rem;
+          color: #334155;
+        }
+
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .text-danger { color: #ef4444; }
+        
+        .icon-btn {
+          background: transparent;
+          border: none;
+          padding: 4px;
+          cursor: pointer;
+          color: #64748b;
+          transition: color 0.1s;
+        }
+
+        .icon-btn:hover { color: #0f172a; }
+        .icon-btn.text-danger:hover { color: #dc2626; }
+
+        .empty-row {
+          text-align: center;
+          padding: 40px !important;
+          color: #94a3b8;
+        }
+
+        .placeholder-card {
+          padding: 48px;
+          text-align: center;
+          border: 1px dashed #cbd5e1;
+          background: transparent;
+        }
+
+        .table-grid-records {
+          display: grid;
+          grid-template-columns: 120px 1.5fr 1fr 1fr 120px;
+          align-items: center;
+        }
+
+        .role-badge {
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+        .role-badge.admin { background: #fee2e2; color: #991b1b; }
+        .role-badge.office { background: #dcfce7; color: #166534; }
+        .role-badge.principal { background: #e0f2fe; color: #075985; }
+
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+        .modal-content {
+          background: white;
+          padding: 24px;
+          border-radius: 12px;
+          width: 100%;
+          max-width: 800px;
+        }
       `}} />
+
+      {/* User Modal */}
+      {showUserViewModal && selectedUser && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '600px', width: '95%' }}>
+            <div className="view-header mb-8" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '20px' }}>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">{selectedUser.name}</h2>
+                <p className="text-slate-400 font-medium tracking-wide">Institutional Staff Dossier • @{selectedUser.username}</p>
+              </div>
+              <button className="icon-btn" onClick={() => setShowUserViewModal(false)}><X size={24} /></button>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+              {[
+                { label: 'Display Name', value: selectedUser.name },
+                { label: 'Username', value: `@${selectedUser.username}` },
+                { label: 'Email Address', value: selectedUser.email || 'Not Configured' },
+                { label: 'Access Role', value: selectedUser.role },
+                { label: 'Status', value: 'Authorized Academic' },
+                { label: 'Last Managed', value: new Date().toLocaleDateString() }
+              ].map((item, idx) => (
+                <div key={idx} className="data-field">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{item.label}</div>
+                  <div className="text-base font-bold text-slate-800">{item.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary" style={{ padding: '0 48px', height: '52px', borderRadius: '12px' }} onClick={() => setShowUserViewModal(false)}>Close Staff Dossier</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUserModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="view-header mb-6">
+              <h2 className="text-lg font-bold">{isEditingUser ? 'Edit Staff Profile' : 'Authorize New Staff'}</h2>
+              <button className="icon-btn" onClick={() => { setShowUserModal(false); setIsEditingUser(false); }}><X /></button>
+            </div>
+            <form onSubmit={handleUserSubmit}>
+              <div className="form-group mb-4">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Display Name <span style={{ color: '#dc2626' }}>*</span></label>
+                <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} />
+              </div>
+              <div className="form-group mb-4">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Username <span style={{ color: '#dc2626' }}>*</span></label>
+                <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} />
+              </div>
+              <div className="form-group mb-4">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Email Address (Optional)</label>
+                <input type="email" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} />
+              </div>
+              <div className="form-group mb-6">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Authorization Role <span style={{ color: '#dc2626' }}>*</span></label>
+                <select className="input" style={{ height: '44px', borderRadius: '10px' }} value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                  <option>Admin</option>
+                  <option>Office</option>
+                  <option>Principal</option>
+                </select>
+              </div>
+              
+              {isEditingUser && (
+                <div className="mb-6 p-4" style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <p className="text-xs font-medium text-slate-500 mb-3">Institutional Security Actions</p>
+                  <button 
+                    type="button" 
+                    className="btn" 
+                    style={{ width: '100%', background: '#fff', border: '1px solid #cbd5e1', color: '#64748b', fontSize: '13px', fontWeight: '600' }}
+                    onClick={() => handleResetPassword(newUser.id)}
+                  >
+                    Reset Credentials to Default
+                  </button>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button type="button" className="btn" style={{ flex: 1, border: '1px solid #e2e8f0', height: '48px', borderRadius: '12px' }} onClick={() => { setShowUserModal(false); setIsEditingUser(false); }}>Discard Changes</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, height: '48px', borderRadius: '12px', fontWeight: '700' }}>{isEditingUser ? 'Sync Staff Profile' : 'Authorize Staff'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Student View Modal */}
+      {showViewModal && selectedStudent && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '800px', width: '95%' }}>
+            <div className="view-header mb-8" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '20px' }}>
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">{selectedStudent.name}</h2>
+                <p className="text-slate-400 font-medium tracking-wide">Institutional Student Dossier • {selectedStudent.registerNo}</p>
+              </div>
+              <button className="icon-btn" onClick={() => setShowViewModal(false)}><X size={24} /></button>
+            </div>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
+              {[
+                { label: 'Register No', value: selectedStudent.registerNo },
+                { label: 'Admission No', value: selectedStudent.admissionNo },
+                { label: 'UMIS ID', value: selectedStudent.umisNo || '---' },
+                { label: 'Father\'s Name', value: selectedStudent.fatherName },
+                { label: 'Nationality', value: selectedStudent.nationality },
+                { label: 'Religion', value: selectedStudent.religion },
+                { label: 'Caste', value: selectedStudent.caste },
+                { label: 'Date of Birth', value: selectedStudent.dob },
+                { label: 'Admission Date', value: selectedStudent.dateOfAdmission },
+                { label: 'Course', value: selectedStudent.course },
+                { label: 'Branch', value: selectedStudent.branch },
+                { label: 'Medium', value: selectedStudent.mediumOfInstruction },
+                { label: 'Batch Start', value: selectedStudent.batchStart },
+                { label: 'Batch End', value: selectedStudent.batchEnd },
+                { label: 'Status', value: 'Active Academic' }
+              ].map((item, idx) => (
+                <div key={idx} className="data-field">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{item.label}</div>
+                  <div className="text-base font-bold text-slate-800">{item.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-primary" style={{ padding: '0 48px', height: '52px', borderRadius: '12px' }} onClick={() => setShowViewModal(false)}>Close Dossier</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="view-header mb-4">
+              <h2>{isEditing ? 'Edit Student' : 'New Student'}</h2>
+              <button className="icon-btn" onClick={() => setShowAddModal(false)}><X /></button>
+            </div>
+            <form onSubmit={handleAddSubmit} style={{ maxHeight: 'calc(90vh - 200px)', overflowY: 'auto', paddingRight: '8px', marginBottom: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }} className="mb-4">
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Register Number <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.registerNo} onChange={e => setNewRecord({...newRecord, registerNo: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Admission No <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.admissionNo} onChange={e => setNewRecord({...newRecord, admissionNo: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">UMIS ID <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.umisNo} onChange={e => setNewRecord({...newRecord, umisNo: e.target.value})} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }} className="mb-4">
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Student Name <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.name} onChange={e => setNewRecord({...newRecord, name: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Father's Name <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.fatherName} onChange={e => setNewRecord({...newRecord, fatherName: e.target.value})} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }} className="mb-4">
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Nationality <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.nationality} onChange={e => setNewRecord({...newRecord, nationality: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Religion <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.religion} onChange={e => setNewRecord({...newRecord, religion: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Caste <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.caste} onChange={e => setNewRecord({...newRecord, caste: e.target.value})} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '16px' }} className="mb-4">
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Course / Degree <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.course} onChange={e => setNewRecord({...newRecord, course: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Department (Branch) <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.branch} onChange={e => setNewRecord({...newRecord, branch: e.target.value})} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }} className="mb-4">
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Medium <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.mediumOfInstruction} onChange={e => setNewRecord({...newRecord, mediumOfInstruction: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Batch Start <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.batchStart} onChange={e => setNewRecord({...newRecord, batchStart: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Batch End <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.batchEnd} onChange={e => setNewRecord({...newRecord, batchEnd: e.target.value})} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }} className="mb-6">
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Date of Birth <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="date" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.dob} onChange={e => setNewRecord({...newRecord, dob: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Admission Date <span style={{ color: '#dc2626' }}>*</span></label>
+                  <input required type="date" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newRecord.dateOfAdmission} onChange={e => setNewRecord({...newRecord, dateOfAdmission: e.target.value})} />
+                </div>
+              </div>
+            </form>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button type="button" className="btn" style={{ flex: 1, border: '1px solid #e2e8f0', height: '48px', borderRadius: '12px' }} onClick={() => setShowAddModal(false)}>Cancel Action</button>
+              <button onClick={handleAddSubmit} className="btn btn-primary" style={{ flex: 1, height: '48px', borderRadius: '12px', fontWeight: '700' }}>{isEditing ? 'Sync Institutional Record' : 'Create New Profile'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Upload Preview Modal */}
+      {showUploadModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '1000px', width: '95%' }}>
+            <div className="view-header mb-6">
+              <div>
+                <h2 className="text-xl font-bold">Import Preview</h2>
+                <p className="text-muted font-small">Diagnostic overview of {uploadData.length} records</p>
+              </div>
+              <button className="icon-btn" onClick={() => setShowUploadModal(false)}><X size={24} /></button>
+            </div>
+            
+            <div className="header-actions mb-4" style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <div className="search-input" style={{ flex: 1 }}>
+                <Search size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Filter preview by name or reg no..." 
+                  value={uploadSearch}
+                  onChange={e => setUploadSearch(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span className="text-muted font-bold font-small uppercase tracking-wider">Show:</span>
+                <select 
+                  className="input" 
+                  style={{ width: '140px', height: '40px', fontSize: '0.8rem' }}
+                  value={uploadFilter}
+                  onChange={e => setUploadFilter(e.target.value)}
+                >
+                  <option value="All">All Records</option>
+                  <option value="Ready">Ready Only</option>
+                  <option value="Error">Errors Only</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ maxHeight: '400px', overflowY: 'auto', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '12px', background: 'white' }} className="mb-6">
+              <table className="data-table" style={{ marginTop: 0, minWidth: '1800px' }}>
+                <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 10 }}>
+                  <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+                    <th style={{ padding: '16px 12px', width: '120px' }}>Reg No</th>
+                    <th style={{ width: '200px' }}>Student Name</th>
+                    <th style={{ width: '180px' }}>Father's Name</th>
+                    <th style={{ width: '120px' }}>Nationality</th>
+                    <th style={{ width: '120px' }}>Religion</th>
+                    <th style={{ width: '120px' }}>Caste</th>
+                    <th style={{ width: '120px' }}>Adm No</th>
+                    <th style={{ width: '120px' }}>UMIS ID</th>
+                    <th style={{ width: '120px' }}>DOB</th>
+                    <th style={{ width: '120px' }}>Adm Date</th>
+                    <th style={{ width: '150px' }}>Course</th>
+                    <th style={{ width: '150px' }}>Branch</th>
+                    <th style={{ width: '100px' }}>Medium</th>
+                    <th style={{ width: '100px' }}>Start</th>
+                    <th style={{ width: '100px' }}>End</th>
+                    <th style={{ width: '150px', position: 'sticky', right: 0, background: '#f8fafc', borderLeft: '1px solid #e2e8f0' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {uploadData
+                    .filter(row => {
+                      const matchesSearch = (row.name?.toLowerCase() || '').includes(uploadSearch.toLowerCase()) || 
+                                          (row.registerNo?.toLowerCase() || '').includes(uploadSearch.toLowerCase());
+                      const matchesStatus = uploadFilter === 'All' || 
+                                          (uploadFilter === 'Ready' && row.errors.length === 0) ||
+                                          (uploadFilter === 'Error' && row.errors.length > 0);
+                      return matchesSearch && matchesStatus;
+                    })
+                    .map((row, i) => {
+                      const hasError = row.errors.length > 0;
+                      return (
+                        <tr key={i} style={{ 
+                          background: hasError ? '#fee2e2' : '#dcfce7',
+                          transition: 'background 0.2s',
+                          borderBottom: '1px solid rgba(0,0,0,0.05)'
+                        }}>
+                          <td className="font-bold text-slate-700">{row.registerNo || '---'}</td>
+                          <td className="font-bold text-slate-900">{row.name || '---'}</td>
+                          <td className="text-slate-600">{row.fatherName || '---'}</td>
+                          <td className="text-slate-600">{row.nationality || '---'}</td>
+                          <td className="text-slate-600">{row.religion || '---'}</td>
+                          <td className="text-slate-600">{row.caste || '---'}</td>
+                          <td className="text-slate-600">{row.admissionNo || '---'}</td>
+                          <td className="text-slate-600">{row.umisNo || '---'}</td>
+                          <td className="text-slate-600">{row.dob || '---'}</td>
+                          <td className="text-slate-600">{row.dateOfAdmission || '---'}</td>
+                          <td className="text-slate-600">{row.course || '---'}</td>
+                          <td className="text-slate-600">{row.branch || '---'}</td>
+                          <td className="text-slate-600">{row.mediumOfInstruction || '---'}</td>
+                          <td className="text-slate-600">{row.batchStart || '---'}</td>
+                          <td className="text-slate-600">{row.batchEnd || '---'}</td>
+                          <td style={{ 
+                            position: 'sticky', 
+                            right: 0, 
+                            background: hasError ? '#fee2e2' : '#dcfce7',
+                            borderLeft: '1px solid rgba(0,0,0,0.05)'
+                          }}>
+                            {hasError ? (
+                              <div style={{ color: '#b91c1c', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <AlertCircle size={14} />
+                                <span className="font-bold" style={{ fontSize: '11px' }}>{row.errors[0]}</span>
+                              </div>
+                            ) : (
+                              <div style={{ color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <CheckCircle2 size={14} />
+                                <span className="font-bold" style={{ fontSize: '11px' }}>Ready</span>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {uploadData.length === 0 && (
+                    <tr><td colSpan="16" className="text-center py-12 text-slate-400">No records to preview</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end', padding: '16px 0 8px', borderTop: '1px solid #f1f5f9' }}>
+              <button className="btn" style={{ height: '48px', padding: '0 32px', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b', fontWeight: '600' }} onClick={() => setShowUploadModal(false)}>Cancel</button>
+              <button 
+                className="btn btn-primary" 
+                style={{ height: '48px', padding: '0 32px', borderRadius: '12px', fontSize: '0.9rem', fontWeight: '700' }}
+                onClick={handleBulkSubmit}
+                disabled={uploadData.filter(r => r.errors.length === 0).length === 0}
+              >
+                <CheckCircle2 size={18} />
+                <span>Import {uploadData.filter(r => r.errors.length === 0).length} Valid Records</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default AdminDashboard
+

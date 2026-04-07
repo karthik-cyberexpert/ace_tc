@@ -1,0 +1,203 @@
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const pool = require('./db');
+require('dotenv').config();
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+
+const PORT = process.env.PORT || 5000;
+
+// Login Endpoint
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const [rows] = await pool.query('SELECT * FROM users WHERE email = ? AND password = ?', [email, password]);
+    if (rows.length > 0) {
+      const user = rows[0];
+      res.json({ success: true, id: user.id, role: user.role, name: user.name, onboarding: user.onboarding });
+    } else {
+      res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Users Endpoints
+app.get('/api/users', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT id, name, email, role, username, onboarding FROM users');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/users', async (req, res) => {
+  const { name, email, role, username } = req.body;
+  const defaultPassword = 'password123';
+  try {
+    const [result] = await pool.query(
+      'INSERT INTO users (name, email, role, password, username, onboarding) VALUES (?, ?, ?, ?, ?, TRUE)',
+      [name, email, role, defaultPassword, username]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, email, role, username } = req.body;
+  try {
+    await pool.query(
+      'UPDATE users SET name=?, email=?, role=?, username=? WHERE id=?',
+      [name, email, role, username, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/users/:id/reset', async (req, res) => {
+  const { id } = req.params;
+  const defaultPassword = 'password123';
+  try {
+    await pool.query(
+      'UPDATE users SET password=?, onboarding=FALSE WHERE id=?',
+      [defaultPassword, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/users/:id/onboard', async (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body;
+  try {
+    await pool.query(
+      'UPDATE users SET password=?, onboarding=FALSE WHERE id=?',
+      [password, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Students Endpoints
+app.get('/api/students', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT * FROM students ORDER BY id DESC');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/students', async (req, res) => {
+  const s = req.body;
+  try {
+    const [result] = await pool.query(
+      'INSERT INTO students (registerNo, admissionNo, umisNo, name, fatherName, nationality, religion, caste, dob, dateOfAdmission, course, branch, mediumOfInstruction, batchStart, batchEnd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [s.registerNo, s.admissionNo, s.umisNo, s.name, s.fatherName, s.nationality, s.religion, s.caste, s.dob, s.dateOfAdmission, s.course, s.branch, s.mediumOfInstruction, s.batchStart, s.batchEnd]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/students/:id', async (req, res) => {
+  const { id } = req.params;
+  const s = req.body;
+  try {
+    await pool.query(
+      'UPDATE students SET registerNo=?, admissionNo=?, umisNo=?, name=?, fatherName=?, nationality=?, religion=?, caste=?, dob=?, dateOfAdmission=?, course=?, branch=?, mediumOfInstruction=?, batchStart=?, batchEnd=? WHERE id=?',
+      [s.registerNo, s.admissionNo, s.umisNo, s.name, s.fatherName, s.nationality, s.religion, s.caste, s.dob, s.dateOfAdmission, s.course, s.branch, s.mediumOfInstruction, s.batchStart, s.batchEnd, id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/students/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM students WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/students/bulk', async (req, res) => {
+  const students = req.body;
+  if (!Array.isArray(students)) return res.status(400).json({ success: false, message: 'Expected an array of students' });
+  
+  try {
+    const values = students.map(s => [
+      s.registerNo, s.admissionNo || '', s.umisNo || '', s.name, s.fatherName || '', 
+      s.nationality || 'Indian', s.religion || '', s.caste || '', s.dob || '', s.dateOfAdmission || '', 
+      s.course, s.branch, s.mediumOfInstruction || 'English', s.batchStart, s.batchEnd
+    ]);
+    
+    await pool.query(
+      'INSERT INTO students (registerNo, admissionNo, umisNo, name, fatherName, nationality, religion, caste, dob, dateOfAdmission, course, branch, mediumOfInstruction, batchStart, batchEnd) VALUES ?',
+      [values]
+    );
+    res.json({ success: true, count: students.length });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Certificates Endpoints
+app.get('/api/certificates', async (req, res) => {
+  try {
+    const [rows] = await pool.query(`
+      SELECT c.*, s.name as studentName, s.registerNo 
+      FROM certificates c 
+      JOIN students s ON c.student_id = s.id 
+      ORDER BY c.id DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/certificates', async (req, res) => {
+  const c = req.body;
+  try {
+    const [result] = await pool.query(
+      'INSERT INTO certificates (student_id, issue_date, auth_code, status, tcPromotion, tcCompleted, tcFeesPaid, tcLeftDate, tcApplyDate, tcConduct, tcScholarship, tcScholarshipScheme) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [c.student_id, c.issue_date, c.auth_code, c.status, c.tcPromotion, c.tcCompleted, c.tcFeesPaid, c.tcLeftDate, c.tcApplyDate, c.tcConduct, c.tcScholarship, c.tcScholarshipScheme]
+    );
+    res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
