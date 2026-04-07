@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, ShieldCheck, PieChart, LogOut, ChevronRight, CheckCircle, XCircle, Search, Eye, Download, X, User } from 'lucide-react'
+import { LayoutDashboard, ShieldCheck, PieChart, LogOut, ChevronRight, CheckCircle, XCircle, Search, Eye, Download, X, User, Filter } from 'lucide-react'
 
 const PrincipalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Overview')
@@ -15,6 +15,19 @@ const PrincipalDashboard = () => {
   ])
   const [selectedApproval, setSelectedApproval] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [bulkSelection, setBulkSelection] = useState(new Set())
+  const [showFilterPanel, setShowFilterPanel] = useState(false)
+  const [approvalSearch, setApprovalSearch] = useState('')
+  const [approvalFilters, setApprovalFilters] = useState({ course: '', branch: '', batch: '' })
+
+  const filteredApprovals = approvals.filter(a => {
+    const term = (a.studentName || '').toLowerCase() + (a.registerNo || '').toLowerCase();
+    const searchMatch = term.includes(approvalSearch.toLowerCase());
+    const courseMatch = !approvalFilters.course || a.course === approvalFilters.course;
+    const branchMatch = !approvalFilters.branch || a.branch === approvalFilters.branch;
+    const batchMatch = !approvalFilters.batch || `${a.batchStart}-${a.batchEnd}` === approvalFilters.batch;
+    return searchMatch && courseMatch && branchMatch && batchMatch;
+  });
 
   useEffect(() => {
     fetchApprovals();
@@ -30,6 +43,7 @@ const PrincipalDashboard = () => {
       const ready = data.filter(c => c.status === 'READY').length;
 
       setApprovals(pending);
+      setBulkSelection(new Set(pending.map(p => p.id)));
       setStats([
         { label: 'Pending Signature', value: pending.length, color: '#f59e0b' },
         { label: 'Authorized Records', value: authorized, color: '#10b981' },
@@ -56,6 +70,32 @@ const PrincipalDashboard = () => {
       console.error('Authorization failed:', err);
     } finally {
       setIsProcessing(false);
+    }
+  }
+
+  const handleBulkApprove = async () => {
+    if (bulkSelection.size === 0) return alert('Select students to approve first.');
+    setIsProcessing(true);
+    try {
+      await Promise.all(Array.from(bulkSelection).map(id => 
+        fetch(`http://localhost:5000/api/certificates/${id}/authorize`, { method: 'POST' })
+      ));
+      fetchApprovals();
+      setBulkSelection(new Set());
+    } catch (err) {
+      console.error('Bulk Approval failed:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
+  const handleReject = async (id) => {
+    if (!window.confirm('Are you sure you want to reject this TC request?')) return;
+    try {
+      await fetch(`http://localhost:5000/api/certificates/${id}/reject`, { method: 'POST' });
+      fetchApprovals();
+    } catch (err) {
+      console.error('Rejection failed:', err);
     }
   }
 
@@ -104,6 +144,36 @@ const PrincipalDashboard = () => {
         ))}
       </div>
     );
+  };
+
+  const dateToWords = (dateStr) => {
+    if (!dateStr) return '---';
+    try {
+      const date = new Date(dateStr);
+      const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      const d = date.getDate();
+      const m = months[date.getMonth()];
+      const y = date.getFullYear();
+      
+      const numToWords = (n) => {
+        const singles = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+        const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+        if (n < 20) return singles[n];
+        return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + singles[n % 10] : "");
+      };
+
+      const yearToWords = (yr) => {
+        const rem = yr % 100;
+        const thousand = Math.floor(yr / 1000);
+        const hundred = Math.floor((yr % 1000) / 100);
+        let s = numToWords(thousand) + " Thousand";
+        if (hundred > 0) s += " " + numToWords(hundred) + " Hundred";
+        if (rem > 0) s += " and " + numToWords(rem);
+        return s;
+      };
+
+      return `${numToWords(d)} ${m} ${yearToWords(y)}`.toUpperCase();
+    } catch { return dateStr; }
   };
 
   return (
@@ -188,7 +258,7 @@ const PrincipalDashboard = () => {
                         <td className="font-bold text-slate-900">{r.studentName}</td>
                         <td className="text-slate-500">{r.issue_date}</td>
                         <td className="text-center">
-                          <button className="icon-btn" onClick={() => { setSelectedApproval(r); setShowDocumentPreview(true); }}><Eye size={18} /></button>
+                          <button className="icon-btn" onClick={() => window.open(`/tc-view/${r.id}`, '_blank')}><Eye size={18} /></button>
                         </td>
                       </tr>
                     ))}
@@ -203,59 +273,119 @@ const PrincipalDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'Approvals' && (
+           {activeTab === 'Approvals' && (
             <div className="data-view card">
               <div className="view-header mb-6">
                 <div>
-                  <h2 className="text-xl font-bold">Institutional Authorization Hub</h2>
-                  <p className="text-muted font-small">Review and digitally authorize pending academic certifications</p>
+                  <h2 className="text-xl font-bold">TC Approval Portal</h2>
+                  <p className="text-muted font-small">Review and verify student certificate requests</p>
                 </div>
                 <div className="header-actions">
-                  <div className="search-input" style={{ width: '320px' }}>
+                  <div className="search-input" style={{ width: '220px' }}>
                     <Search size={18} />
-                    <input type="text" placeholder="Search by name or register number..." />
+                    <input type="text" placeholder="Search students..." value={approvalSearch} onChange={e => { setApprovalSearch(e.target.value); setApprovalPage(1); }} />
                   </div>
-                  <button className="btn" style={{ border: '1px solid #e2e8f0' }}><Download size={18} /><span>Reports</span></button>
+                  <button className={`btn ${showFilterPanel ? 'btn-primary' : ''}`} style={{ border: '1px solid #e2e8f0', background: showFilterPanel ? '#2563eb' : 'white', color: showFilterPanel ? 'white' : '#64748b' }} onClick={() => setShowFilterPanel(!showFilterPanel)}><Filter size={18} /></button>
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={handleBulkApprove} 
+                    disabled={isProcessing || bulkSelection.size === 0}
+                    style={{ background: '#10b981', boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2)' }}
+                  >
+                    <CheckCircle size={18} />
+                    <span>Approve Selected ({bulkSelection.size})</span>
+                  </button>
                 </div>
               </div>
+
+              {showFilterPanel && (
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Course</label>
+                    <select className="input h-10" value={approvalFilters.course} onChange={e => { setApprovalFilters(prev => ({ ...prev, course: e.target.value })); setApprovalPage(1); }}>
+                      <option value="">All Courses</option>
+                      {Array.from(new Set(approvals.map(a => a.course).filter(Boolean))).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Branch</label>
+                    <select className="input h-10" value={approvalFilters.branch} onChange={e => { setApprovalFilters(prev => ({ ...prev, branch: e.target.value })); setApprovalPage(1); }}>
+                      <option value="">All Branches</option>
+                      {Array.from(new Set(approvals.filter(a => !approvalFilters.course || a.course === approvalFilters.course).map(a => a.branch).filter(Boolean))).map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Batch</label>
+                    <select className="input h-10" value={approvalFilters.batch} onChange={e => { setApprovalFilters(prev => ({ ...prev, batch: e.target.value })); setApprovalPage(1); }}>
+                      <option value="">All Batches</option>
+                      {Array.from(new Set(approvals.map(a => `${a.batchStart}-${a.batchEnd}`).filter(b => b !== 'undefined-undefined'))).map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <button className="btn" style={{ marginTop: '18px', background: 'white', border: '1px solid #cbd5e1' }} onClick={() => { setApprovalFilters({ course: '', branch: '', batch: '' }); setApprovalSearch(''); }}>Reset</button>
+                </div>
+              )}
+
               <table className="data-table">
                 <thead>
                   <tr>
+                    <th style={{ width: '40px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={filteredApprovals.length > 0 && filteredApprovals.every(a => bulkSelection.has(a.id))} 
+                        onChange={(e) => {
+                          if (e.target.checked) setBulkSelection(new Set(filteredApprovals.map(a => a.id)));
+                          else setBulkSelection(new Set());
+                        }}
+                      />
+                    </th>
                     <th>Reg No</th>
-                    <th>Candidate Name</th>
-                    <th>Academic Department</th>
-                    <th className="text-center">Inherent Status</th>
-                    <th className="text-center" style={{ width: '150px' }}>Definitive Actions</th>
+                    <th>Student Name</th>
+                    <th>Course</th>
+                    <th>Branch</th>
+                    <th>Batch</th>
+                    <th className="text-center" style={{ width: '150px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {approvals
+                  {filteredApprovals
                     .slice((approvalPage - 1) * rowsPerPage, approvalPage * rowsPerPage)
                     .map((r, i) => (
-                    <tr key={i}>
+                    <tr key={i} style={{ opacity: !bulkSelection.has(r.id) ? 0.6 : 1 }}>
+                      <td>
+                        <input 
+                          type="checkbox" 
+                          checked={bulkSelection.has(r.id)} 
+                          onChange={() => {
+                            const next = new Set(bulkSelection);
+                            if (next.has(r.id)) next.delete(r.id);
+                            else next.add(r.id);
+                            setBulkSelection(next);
+                          }}
+                        />
+                      </td>
                       <td className="font-bold text-slate-600">{r.registerNo}</td>
                       <td className="font-bold text-slate-900">{r.studentName}</td>
-                      <td className="text-slate-600 font-medium">{r.branch || 'N/A'}</td>
+                      <td className="text-slate-600 font-medium">{r.course || '---'}</td>
+                      <td className="text-slate-600 font-medium">{r.branch || '---'}</td>
+                      <td className="text-slate-500">{`${r.batchStart}-${r.batchEnd}`}</td>
                       <td className="text-center">
-                        <span style={{ background: '#fffbeb', color: '#b45309', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{r.status}</span>
-                      </td>
-                      <td className="text-center">
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                          <button className="icon-btn" style={{ color: '#2563eb' }} title="Verify Details" onClick={() => { setSelectedApproval(r); setShowDocumentPreview(true); }}><Search size={18} /></button>
-                          <button style={{ background: '#10b981', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '10px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2)' }} onClick={() => { setSelectedApproval(r); setShowDocumentPreview(true); }}>Sign TC</button>
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button className="icon-btn" style={{ color: '#64748b' }} onClick={() => window.open(`/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
+                          <button className="icon-btn" style={{ color: '#10b981' }} onClick={() => handleAuthorize(r.id)} title="Approve TC"><CheckCircle size={20} /></button>
+                          <button className="icon-btn" style={{ color: '#ef4444' }} onClick={() => handleReject(r.id)} title="Reject TC"><XCircle size={20} /></button>
                         </div>
                       </td>
                     </tr>
                   ))}
-                  {approvals.length === 0 && (
+                  {filteredApprovals.length === 0 && (
                     <tr>
-                      <td colSpan="5" className="text-center py-20 text-slate-400 font-medium">System Clear: No institutional certifications are currently awaiting authorization.</td>
+                      <td colSpan="7" className="text-center py-20 text-slate-400 font-medium italic">{(approvalSearch || approvalFilters.course || approvalFilters.branch || approvalFilters.batch) ? 'No certificate requests match your current filters.' : 'System Clear: No institutional certifications are currently awaiting authorization.'}</td>
                     </tr>
                   )}
                 </tbody>
               </table>
               <Pagination 
-                totalItems={approvals.length} 
+                totalItems={filteredApprovals.length} 
                 currentPage={approvalPage} 
                 onPageChange={setApprovalPage} 
               />
@@ -271,69 +401,6 @@ const PrincipalDashboard = () => {
           )}
         </div>
       </main>
-
-      {showDocumentPreview && (
-        <div className="modal-overlay">
-          <div className="modal-container-fixed" style={{ maxWidth: '900px', width: '95%', height: '90vh' }}>
-            <div className="modal-header-fixed" style={{ background: '#ffffff', borderBottom: '1px solid #f1f5f9', padding: '24px 32px' }}>
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Document Integrity Verification</h2>
-                <p className="text-slate-400 font-medium tracking-wide">Institutional Academic Dossier • Transfer Certificate #{selectedApproval?.auth_code || 'PENDING'}</p>
-              </div>
-              <button className="icon-btn" style={{ background: 'transparent', border: 'none' }} onClick={() => setShowDocumentPreview(false)}><X size={28} /></button>
-            </div>
-            <div className="modal-form-wrapper" style={{ flex: 1, overflowY: 'auto', background: '#f8fafc', padding: '40px' }}>
-              <div style={{ background: 'white', padding: '80px', minHeight: '1100px', boxShadow: '0 10px 40px rgba(0,0,0,0.05)', borderRadius: '4px', margin: '0 auto', maxWidth: '800px', border: '1px solid #e1e8ef' }}>
-                <div style={{ textAlign: 'center', marginBottom: '60px' }}>
-                  <h1 style={{ fontSize: '24px', color: '#1e3a8a', fontWeight: '900' }}>ADHIYAMAAN COLLEGE OF ENGINEERING</h1>
-                  <p style={{ fontWeight: '800', letterSpacing: '0.1em', marginTop: '4px' }}>(AUTONOMOUS)</p>
-                  <p style={{ fontSize: '12px' }}>HOSUR, TAMIL NADU - 635130</p>
-                </div>
-
-                <div style={{ height: '4px', background: '#1e3a8a', marginBottom: '60px' }}></div>
-                
-                <h2 style={{ textAlign: 'center', fontSize: '20px', textDecoration: 'underline', fontWeight: '800', marginBottom: '80px' }}>TRANSFER CERTIFICATE</h2>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', fontSize: '16px', lineHeight: '1.6' }}>
-                  <p>Certified that the following institutional records have been verified against the master academy database:</p>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '16px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
-                    <div style={{ fontWeight: '700', color: '#64748b' }}>Candidate Name:</div>
-                    <div style={{ fontWeight: '900' }}>{selectedApproval?.studentName || '---'}</div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '16px' }}>
-                    <div style={{ fontWeight: '700', color: '#64748b' }}>Register Number:</div>
-                    <div style={{ fontWeight: '900' }}>{selectedApproval?.registerNo || '---'}</div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr', gap: '16px' }}>
-                    <div style={{ fontWeight: '700', color: '#64748b' }}>Degree / Branch:</div>
-                    <div style={{ fontWeight: '900' }}>{selectedApproval?.branch || '---'}</div>
-                  </div>
-                  
-                  <p style={{ marginTop: '40px' }}>The student named above is found eligible for this certification as of {new Date().toLocaleDateString()}.</p>
-                </div>
-
-                <div style={{ marginTop: '200px', display: 'flex', justifyContent: 'flex-end', textAlign: 'center' }}>
-                  <div style={{ borderTop: '1px solid #000', width: '200px', paddingTop: '8px' }}>
-                    <p style={{ fontWeight: '900' }}>PRINCIPAL</p>
-                    <p style={{ fontSize: '10px' }}>DIGITAL SIGNATURE PENDING</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer-static" style={{ padding: '24px 32px', display: 'flex', justifyContent: 'flex-end', gap: '16px', background: 'white', borderTop: '1px solid #f1f5f9' }}>
-              <button className="btn" style={{ border: '1px solid #e2e8f0', height: '52px', padding: '0 32px', borderRadius: '12px', fontWeight: '700' }} onClick={() => setShowDocumentPreview(false)} disabled={isProcessing}>Decline Action</button>
-              <button 
-                style={{ background: '#059669', color: 'white', border: 'none', padding: '0 48px', height: '52px', borderRadius: '12px', fontWeight: '900', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 10px 15px -3px rgba(5, 150, 105, 0.3)', opacity: isProcessing ? 0.7 : 1 }} 
-                onClick={() => handleAuthorize(selectedApproval?.id)}
-                disabled={isProcessing}
-              >
-                {isProcessing ? 'Authorizing...' : 'Digitally Sign & Authorize'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <style dangerouslySetInnerHTML={{ __html: `
         .admin-layout { display: flex; height: 100vh; background: #f8fafc; font-family: 'Inter', system-ui, -apple-system, sans-serif; }

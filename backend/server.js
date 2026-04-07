@@ -10,6 +10,17 @@ app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 5000;
 
+const shortCodes = require('./shortCodes.json');
+
+const generateAuthCode = (s) => {
+  const courseCode = (s.course || '').replace(/\./g, '').toUpperCase();
+  const yearCode = (s.batchStart || '').toString().slice(-2);
+  const mappingKey = `${s.course} ${s.branch}`;
+  const branchShort = shortCodes[mappingKey] || shortCodes[s.branch] || (s.branch || 'XX').substring(0, 3).toUpperCase();
+  const regSuffix = (s.registerNo || '').toString().slice(-3);
+  return `${courseCode}${yearCode}${branchShort}${regSuffix}`;
+};
+
 // Login Endpoint
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
@@ -174,7 +185,7 @@ app.post('/api/students/bulk', async (req, res) => {
 app.get('/api/certificates', async (req, res) => {
   try {
     const [rows] = await pool.query(`
-      SELECT c.*, s.name as studentName, s.registerNo 
+      SELECT c.*, s.name as studentName, s.registerNo, s.course, s.branch, s.batchStart, s.batchEnd, s.admissionNo, s.umisNo, s.fatherName, s.nationality, s.religion, s.caste, s.dob, s.dateOfAdmission, s.mediumOfInstruction 
       FROM certificates c 
       JOIN students s ON c.student_id = s.id 
       ORDER BY c.id DESC
@@ -185,14 +196,84 @@ app.get('/api/certificates', async (req, res) => {
   }
 });
 
+app.get('/api/certificates/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.query(`
+      SELECT c.*, s.name as studentName, s.registerNo, s.course, s.branch, s.batchStart, s.batchEnd, s.admissionNo, s.umisNo, s.fatherName, s.nationality, s.religion, s.caste, s.dob, s.dateOfAdmission, s.mediumOfInstruction 
+      FROM certificates c 
+      JOIN students s ON s.id = c.student_id 
+      WHERE c.id = ?`, [id]);
+    if (rows.length > 0) res.json(rows[0]);
+    else res.status(404).json({ success: false, message: 'Certificate not found' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/certificates', async (req, res) => {
   const c = req.body;
   try {
+    const [students] = await pool.query('SELECT course, branch, batchStart, registerNo FROM students WHERE id = ?', [c.student_id]);
+    if (students.length === 0) return res.status(404).json({ success: false, message: 'Student not found' });
+    
+    const auth_code = generateAuthCode(students[0]);
+    
     const [result] = await pool.query(
       'INSERT INTO certificates (student_id, issue_date, auth_code, status, tcPromotion, tcCompleted, tcFeesPaid, tcLeftDate, tcApplyDate, tcConduct, tcScholarship, tcScholarshipScheme) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [c.student_id, c.issue_date, c.auth_code, c.status, c.tcPromotion, c.tcCompleted, c.tcFeesPaid, c.tcLeftDate, c.tcApplyDate, c.tcConduct, c.tcScholarship, c.tcScholarshipScheme]
+      [c.student_id, c.issue_date, auth_code, c.status || 'AWAITING AUTH', c.tcPromotion, c.tcCompleted, c.tcFeesPaid, c.tcLeftDate, c.tcApplyDate, c.tcConduct, c.tcScholarship, c.tcScholarshipScheme]
     );
     res.json({ success: true, id: result.insertId });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/certificates/bulk', async (req, res) => {
+  const certs = req.body;
+  if (!Array.isArray(certs)) return res.status(400).json({ success: false, message: 'Expected an array' });
+
+  try {
+    // Get all student IDs to fetch their details
+    const studentIds = certs.map(c => c.student_id);
+    const [studentInfo] = await pool.query('SELECT id, course, branch, batchStart, registerNo FROM students WHERE id IN (?)', [studentIds]);
+    const studentMap = studentInfo.reduce((acc, s) => ({ ...acc, [s.id]: s }), {});
+
+    const values = certs.map(c => {
+      const s = studentMap[c.student_id];
+      const auth_code = s ? generateAuthCode(s) : `TC-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      return [
+        c.student_id, c.issue_date, auth_code, c.status || 'AWAITING AUTH',
+        c.tcPromotion, c.tcCompleted, c.tcFeesPaid, c.tcLeftDate, c.tcApplyDate,
+        c.tcConduct, c.tcScholarship, c.tcScholarshipScheme || ''
+      ];
+    });
+
+    await pool.query(
+      'INSERT INTO certificates (student_id, issue_date, auth_code, status, tcPromotion, tcCompleted, tcFeesPaid, tcLeftDate, tcApplyDate, tcConduct, tcScholarship, tcScholarshipScheme) VALUES ?',
+      [values]
+    );
+    res.json({ success: true, count: certs.length });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/certificates/:id/authorize', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('UPDATE certificates SET status = "ISSUED" WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/certificates/:id/reject', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('UPDATE certificates SET status = "REJECTED" WHERE id = ?', [id]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
