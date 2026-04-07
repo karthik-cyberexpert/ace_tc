@@ -1,6 +1,9 @@
-import { useState, useEffect } from 'react'
-import { LayoutDashboard, Users, ClipboardList, Database, Bell, Search, LogOut, ChevronRight, Plus, Trash2, Upload, X, Download, Check, Eye, Edit, FileUp, Settings, CheckCircle2, AlertCircle, Filter, RotateCcw } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { LayoutDashboard, Users, ClipboardList, Database, Bell, Search, LogOut, ChevronRight, Plus, Trash2, Upload, X, Download, Check, Eye, Edit, FileUp, Settings, CheckCircle2, AlertCircle, Filter, RotateCcw, ShieldCheck, Printer } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
+import JSZip from 'jszip'
 
 const OfficeDashboard = () => {
   const [activeTab, setActiveTab] = useState('Overview')
@@ -23,7 +26,7 @@ const OfficeDashboard = () => {
   const [uploadSearch, setUploadSearch] = useState('')
   const [uploadFilter, setUploadFilter] = useState('All')
   const [showFilters, setShowFilters] = useState(false)
-  const [filterCriteria, setFilterCriteria] = useState({ course: '', branch: '', batch: '' })
+  const [filterCriteria, setFilterCriteria] = useState({ course: '', branch: '', batch: '', status: '' })
   const [tcSearch, setTcSearch] = useState('')
   const [tcPage, setTcPage] = useState(1)
   const [tcFormData, setTcFormData] = useState({})
@@ -31,6 +34,10 @@ const OfficeDashboard = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [tcSingleSearch, setTcSingleSearch] = useState('')
   const [bulkSelectedIds, setBulkSelectedIds] = useState(new Set())
+  const [recordBulkIds, setRecordBulkIds] = useState(new Set())
+  const [downloadProgress, setDownloadProgress] = useState({ active: false, current: 0, total: 0 })
+  const pdfRef = useRef(null)
+  const [pdfData, setPdfData] = useState(null)
 
   const hasExistingTC = (regNo) => {
     return records.some(r => (r.registerNo === regNo || r.reg === regNo) && (r.status === 'AWAITING AUTH' || r.status === 'ISSUED' || r.status === 'READY'));
@@ -184,6 +191,13 @@ const OfficeDashboard = () => {
   }, [])
 
   useEffect(() => {
+    if (activeTab === 'Records' && records.length > 0) {
+      const issued = records.filter(r => r.status === 'ISSUED').map(r => r.id);
+      setRecordBulkIds(new Set(issued));
+    }
+  }, [activeTab, records]);
+
+  useEffect(() => {
     if (departments.length > 0 && !bulkFilter.branch) {
       setBulkFilter(prev => ({ ...prev, branch: departments[0] }))
     }
@@ -285,6 +299,85 @@ const OfficeDashboard = () => {
     }
   }
 
+  const dateToWords = (dateStr) => {
+    if (!dateStr) return '---';
+    try {
+      const date = new Date(dateStr);
+      const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      const d = date.getDate();
+      const m = months[date.getMonth()];
+      const y = date.getFullYear();
+      
+      const numToWords = (n) => {
+        const singles = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+        const singlesCaps = singles.map(s => s.toUpperCase());
+        const tens = ["", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY"];
+        if (n < 20) return singlesCaps[n];
+        return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + singlesCaps[n % 10] : "");
+      };
+
+      const yearToWords = (yr) => {
+        const rem = yr % 100;
+        const thousand = Math.floor(yr / 1000);
+        const hundred = Math.floor((yr % 1000) / 100);
+        let s = numToWords(thousand) + " THOUSAND";
+        if (hundred > 0) s += " " + numToWords(hundred) + " HUNDRED";
+        if (rem > 0) s += " AND " + numToWords(rem);
+        return s;
+      };
+
+      return `${numToWords(d)} ${m.toUpperCase()} ${yearToWords(y)}`;
+    } catch { return dateStr; }
+  };
+
+  const handleDownloadPDF = async (record) => {
+    setPdfData(record);
+    // Wait for render
+    setTimeout(async () => {
+      const element = document.getElementById('invisible-tc');
+      const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+      pdf.save(`${record.auth_code || record.id}.pdf`);
+      setPdfData(null);
+    }, 100);
+  }
+
+  const handleDownloadZip = async () => {
+    const selected = records.filter(r => recordBulkIds.has(r.id));
+    if (selected.length === 0) return alert('No records selected for download');
+    
+    setDownloadProgress({ active: true, current: 0, total: selected.length });
+    const zip = new JSZip();
+    
+    for (let i = 0; i < selected.length; i++) {
+      const record = selected[i];
+      setDownloadProgress(prev => ({ ...prev, current: i + 1 }));
+      setPdfData(record);
+      
+      await new Promise(r => setTimeout(r, 150)); // Allow render
+      const element = document.getElementById('invisible-tc');
+      const canvas = await html2canvas(element, { scale: 1.5, useCORS: true });
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+      
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+      const pdfBlob = pdf.output('blob');
+      zip.file(`${record.auth_code || record.id}.pdf`, pdfBlob);
+    }
+    
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(zipBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `ACE_TC_Records_${new Date().toISOString().split('T')[0]}.zip`;
+    link.click();
+    
+    setPdfData(null);
+    setDownloadProgress({ active: false, current: 0, total: 0 });
+  }
+
   const handleEditStudent = (student) => {
     setNewStudent(student);
     setIsEditing(true);
@@ -375,10 +468,12 @@ const OfficeDashboard = () => {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Register No</th>
+                      <th>Reg No</th>
                       <th>Student Name</th>
-                      <th>Action</th>
-                      <th className="text-right">Status</th>
+                      <th>Course</th>
+                      <th>Branch</th>
+                      <th>Batch</th>
+                      <th className="text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -386,17 +481,28 @@ const OfficeDashboard = () => {
                       .slice((recentPage - 1) * rowsPerPage, recentPage * rowsPerPage)
                       .map((r, i) => (
                       <tr key={i}>
-                        <td className="font-medium text-slate-600">{r.reg}</td>
-                        <td className="font-bold text-slate-900">{r.name}</td>
-                        <td>TC Generation</td>
-                        <td className="text-right">
-                          <span className="status-badge success">Issued</span>
+                        <td className="font-medium text-slate-600">{r.registerNo || r.reg}</td>
+                        <td className="font-bold text-slate-900">{r.studentName || r.name}</td>
+                        <td className="text-slate-600">{r.course || '---'}</td>
+                        <td className="text-slate-600">{r.branch || '---'}</td>
+                        <td className="text-slate-500 font-medium">
+                          {r.batchStart && r.batchEnd ? `${r.batchStart}-${r.batchEnd}` : '---'}
+                        </td>
+                        <td className="text-center">
+                          <button 
+                            className="icon-btn" 
+                            style={{ color: '#2563eb' }} 
+                            onClick={() => window.open(`/tc-view/${r.id}`, '_blank')}
+                            title="View Certificate"
+                          >
+                            <Eye size={18} />
+                          </button>
                         </td>
                       </tr>
                     ))}
                     {records.length === 0 && (
                       <tr>
-                        <td colSpan="4" className="text-center py-8 text-slate-400">No recent activity records.</td>
+                        <td colSpan="6" className="text-center py-8 text-slate-400">No recent activity records.</td>
                       </tr>
                     )}
                   </tbody>
@@ -1122,54 +1228,274 @@ const OfficeDashboard = () => {
           {activeTab === 'Records' && (
             <div className="card">
               <div className="view-header mb-6">
-                <h2 className="text-xl font-bold text-slate-900">Certificate Records</h2>
-                <div className="search-input">
-                  <Search size={16} />
-                  <input 
-                    type="text" 
-                    placeholder="Search history..." 
-                    value={recordSearch} 
-                    onChange={e => setRecordSearch(e.target.value)} 
-                  />
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Certificate Records</h2>
+                  <p className="text-slate-400 font-small">Institutional archive of generated Transfer Certificates</p>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  {recordBulkIds.size > 0 && (
+                    <button className="btn btn-primary" onClick={handleDownloadZip} style={{ gap: '8px', fontSize: '13px' }}>
+                      <Download size={16} /> Download Selected ({recordBulkIds.size})
+                    </button>
+                  )}
+                  <div className="search-input">
+                    <Search size={16} />
+                    <input 
+                      type="text" 
+                      placeholder="Search history..." 
+                      value={recordSearch} 
+                      onChange={e => setRecordSearch(e.target.value)} 
+                    />
+                  </div>
+                  <button className={`btn ${showFilters ? 'btn-primary' : ''}`} style={{ border: '1px solid #e2e8f0', background: showFilters ? '#2563eb' : 'white', color: showFilters ? 'white' : '#64748b' }} onClick={() => setShowFilters(!showFilters)}><Filter size={18} /></button>
                 </div>
               </div>
+
+              {showFilters && (
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Course</label>
+                    <select className="input h-10" value={filterCriteria.course} onChange={e => { setFilterCriteria(prev => ({ ...prev, course: e.target.value })); setRecordPage(1); }}>
+                      <option value="">All Courses</option>
+                      {Array.from(new Set(records.map(a => a.course).filter(Boolean))).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Branch</label>
+                    <select className="input h-10" value={filterCriteria.branch} onChange={e => { setFilterCriteria(prev => ({ ...prev, branch: e.target.value })); setRecordPage(1); }}>
+                      <option value="">All Branches</option>
+                      {Array.from(new Set(records.filter(a => !filterCriteria.course || a.course === filterCriteria.course).map(a => a.branch).filter(Boolean))).map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Batch</label>
+                    <select className="input h-10" value={filterCriteria.batch} onChange={e => { setFilterCriteria(prev => ({ ...prev, batch: e.target.value })); setRecordPage(1); }}>
+                       <option value="">All Batches</option>
+                       {Array.from(new Set(records.map(a => `${a.batchStart}-${a.batchEnd}`).filter(b => b !== 'undefined-undefined'))).map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Status</label>
+                    <select className="input h-10" value={filterCriteria.status} onChange={e => { setFilterCriteria(prev => ({ ...prev, status: e.target.value })); setRecordPage(1); }}>
+                      <option value="">All Status</option>
+                      <option value="AWAITING AUTH">Pending</option>
+                      <option value="ISSUED">Issued</option>
+                    </select>
+                  </div>
+                  <button className="btn" style={{ marginTop: '18px', background: 'white', border: '1px solid #cbd5e1' }} onClick={() => { setFilterCriteria({ course: '', branch: '', batch: '', status: '' }); setRecordSearch(''); }}>Reset</button>
+                </div>
+              )}
+
+              {/* Table rendering below */}
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th style={{ width: '140px' }}>Reg No</th>
+                    <th style={{ width: '40px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={records.filter(r => {
+                          const term = (r.studentName || r.name || '').toLowerCase() + (r.registerNo || r.reg || '').toLowerCase();
+                          const searchMatch = term.includes(recordSearch.toLowerCase());
+                          const courseMatch = !filterCriteria.course || r.course === filterCriteria.course;
+                          const branchMatch = !filterCriteria.branch || r.branch === filterCriteria.branch;
+                          const batchMatch = !filterCriteria.batch || `${r.batchStart}-${r.batchEnd}` === filterCriteria.batch;
+                          const statusMatch = !filterCriteria.status || r.status === filterCriteria.status;
+                          return searchMatch && courseMatch && branchMatch && batchMatch && statusMatch;
+                        }).length > 0 && records.filter(r => {
+                          const term = (r.studentName || r.name || '').toLowerCase() + (r.registerNo || r.reg || '').toLowerCase();
+                          const searchMatch = term.includes(recordSearch.toLowerCase());
+                          const courseMatch = !filterCriteria.course || r.course === filterCriteria.course;
+                          const branchMatch = !filterCriteria.branch || r.branch === filterCriteria.branch;
+                          const batchMatch = !filterCriteria.batch || `${r.batchStart}-${r.batchEnd}` === filterCriteria.batch;
+                          const statusMatch = !filterCriteria.status || r.status === filterCriteria.status;
+                          return searchMatch && courseMatch && branchMatch && batchMatch && statusMatch;
+                        }).every(r => recordBulkIds.has(r.id))}
+                        onChange={(e) => {
+                          const currentFiltered = records.filter(r => {
+                            const term = (r.studentName || r.name || '').toLowerCase() + (r.registerNo || r.reg || '').toLowerCase();
+                            const searchMatch = term.includes(recordSearch.toLowerCase());
+                            const courseMatch = !filterCriteria.course || r.course === filterCriteria.course;
+                            const branchMatch = !filterCriteria.branch || r.branch === filterCriteria.branch;
+                            const batchMatch = !filterCriteria.batch || `${r.batchStart}-${r.batchEnd}` === filterCriteria.batch;
+                            const statusMatch = !filterCriteria.status || r.status === filterCriteria.status;
+                            return searchMatch && courseMatch && branchMatch && batchMatch && statusMatch;
+                          });
+                          const newIds = new Set(recordBulkIds);
+                          if (e.target.checked) currentFiltered.forEach(r => newIds.add(r.id));
+                          else currentFiltered.forEach(r => newIds.delete(r.id));
+                          setRecordBulkIds(newIds);
+                        }}
+                      />
+                    </th>
+                    <th>Reg No</th>
                     <th>Name</th>
-                    <th style={{ width: '150px' }}>Issue Date</th>
-                    <th style={{ width: '180px' }}>Authorization</th>
-                    <th className="text-right" style={{ width: '120px' }}>Status</th>
+                    <th>Course</th>
+                    <th>Branch</th>
+                    <th>Status</th>
+                    <th>Batch</th>
+                    <th className="text-center" style={{ width: '120px' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {records
-                    .filter(r => (r.name || '').toLowerCase().includes(recordSearch.toLowerCase()) || (r.reg || '').toLowerCase().includes(recordSearch.toLowerCase()))
+                    .filter(r => {
+                      const term = (r.studentName || r.name || '').toLowerCase() + (r.registerNo || r.reg || '').toLowerCase();
+                      const searchMatch = term.includes(recordSearch.toLowerCase());
+                      const courseMatch = !filterCriteria.course || r.course === filterCriteria.course;
+                      const branchMatch = !filterCriteria.branch || r.branch === filterCriteria.branch;
+                      const batchMatch = !filterCriteria.batch || `${r.batchStart}-${r.batchEnd}` === filterCriteria.batch;
+                      const statusMatch = !filterCriteria.status || r.status === filterCriteria.status;
+                      return searchMatch && courseMatch && branchMatch && batchMatch && statusMatch;
+                    })
                     .slice((recordPage - 1) * rowsPerPage, recordPage * rowsPerPage)
                     .map((r, i) => (
-                    <tr key={i}>
-                      <td className="font-medium text-slate-700">{r.reg}</td>
-                      <td className="font-medium text-slate-900">{r.name}</td>
-                      <td className="text-slate-600">{r.date}</td>
-                      <td className="font-small" style={{ color: '#64748b' }}>{r.auth}</td>
-                      <td className="text-right">
-                        <span className="status-badge success">Issued</span>
+                    <tr key={i} className={recordBulkIds.has(r.id) ? 'row-selected' : ''}>
+                      <td>
+                        <input 
+                          type="checkbox" 
+                          checked={recordBulkIds.has(r.id)} 
+                          onChange={() => {
+                            const newIds = new Set(recordBulkIds);
+                            if (newIds.has(r.id)) newIds.delete(r.id);
+                            else newIds.add(r.id);
+                            setRecordBulkIds(newIds);
+                          }}
+                        />
+                      </td>
+                      <td className="font-bold text-slate-600">{r.registerNo || r.reg}</td>
+                      <td className="font-bold text-slate-900">{r.studentName || r.name}</td>
+                      <td className="text-slate-600 font-medium">{r.course || '---'}</td>
+                      <td className="text-slate-600 font-medium">{r.branch || '---'}</td>
+                      <td>
+                        <span className={`status-badge ${r.status === 'ISSUED' ? 'success' : 'warning'}`}>
+                          {r.status === 'ISSUED' ? 'Issued' : 'Pending'}
+                        </span>
+                      </td>
+                      <td className="text-slate-500">{`${r.batchStart}-${r.batchEnd}`}</td>
+                      <td className="text-center">
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                          <button className="icon-btn" style={{ color: '#2563eb' }} onClick={() => window.open(`/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
+                          {r.status === 'ISSUED' && (
+                            <button className="icon-btn" style={{ color: '#10b981' }} onClick={() => handleDownloadPDF(r)} title="Download TC"><Download size={18} /></button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
-                  {records.filter(r => (r.name || '').toLowerCase().includes(recordSearch.toLowerCase()) || (r.reg || '').toLowerCase().includes(recordSearch.toLowerCase())).length === 0 && (
+                  {records.filter(r => {
+                    const term = (r.studentName || r.name || '').toLowerCase() + (r.registerNo || r.reg || '').toLowerCase();
+                    const searchMatch = term.includes(recordSearch.toLowerCase());
+                    const courseMatch = !filterCriteria.course || r.course === filterCriteria.course;
+                    const branchMatch = !filterCriteria.branch || r.branch === filterCriteria.branch;
+                    const batchMatch = !filterCriteria.batch || `${r.batchStart}-${r.batchEnd}` === filterCriteria.batch;
+                    const statusMatch = !filterCriteria.status || r.status === filterCriteria.status;
+                    return searchMatch && courseMatch && branchMatch && batchMatch && statusMatch;
+                  }).length === 0 && (
                     <tr>
-                      <td colSpan="5" className="text-center py-12 text-slate-400 font-medium">No certificate records found matching your query.</td>
+                      <td colSpan="7" className="text-center py-12 text-slate-400 font-medium">No certificate records found matching your query.</td>
                     </tr>
                   )}
                 </tbody>
               </table>
               <Pagination 
-                totalItems={records.filter(r => (r.name || '').toLowerCase().includes(recordSearch.toLowerCase()) || (r.reg || '').toLowerCase().includes(recordSearch.toLowerCase())).length} 
+                totalItems={records.filter(r => {
+                    const term = (r.studentName || r.name || '').toLowerCase() + (r.registerNo || r.reg || '').toLowerCase();
+                    const searchMatch = term.includes(recordSearch.toLowerCase());
+                    const courseMatch = !filterCriteria.course || r.course === filterCriteria.course;
+                    const branchMatch = !filterCriteria.branch || r.branch === filterCriteria.branch;
+                    const batchMatch = !filterCriteria.batch || `${r.batchStart}-${r.batchEnd}` === filterCriteria.batch;
+                    const statusMatch = !filterCriteria.status || r.status === filterCriteria.status;
+                    return searchMatch && courseMatch && branchMatch && batchMatch && statusMatch;
+                }).length} 
                 currentPage={recordPage} 
                 onPageChange={setRecordPage} 
               />
+            </div>
+          )}
+
+          {/* Invisible PDF Renderer - Exact clone of TransferCertificate.jsx for pixel-perfect downloads */}
+          {pdfData && (
+            <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
+              <div id="invisible-tc" style={{ 
+                background: 'white', padding: '10px 40px', height: '297mm', width: '210mm', 
+                border: '1px solid #000', color: '#000', position: 'relative', fontFamily: 'Times New Roman, serif',
+                boxSizing: 'border-box', overflow: 'hidden'
+              }}>
+                <div style={{ position: 'relative', marginBottom: '20px', paddingBottom: '8px', borderBottom: '2px solid #000' }}>
+                  <div style={{ position: 'absolute', left: '0', top: '50%', transform: 'translateY(-50%)', width: '75px', height: '75px', display: 'flex', alignItems: 'center' }}>
+                    <img src="/logo.png" alt="ACE Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+                  </div>
+                  <div style={{ textAlign: 'center', paddingLeft: '80px' }}>
+                    <h1 style={{ fontSize: '24px', color: '#000', fontWeight: '900', marginBottom: '1px', lineHeight: '1.2' }}>ADHIYAMAAN COLLEGE OF ENGINEERING</h1>
+                    <p style={{ fontWeight: '800', letterSpacing: '0.1em', fontSize: '14px', color: '#000', marginBottom: '4px' }}>(AUTONOMOUS)</p>
+                    <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Affiliated to Anna University- Chennai & Approved by AICTE - New Delhi,</p>
+                    <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Accredited by NAAC - UGC - New Delhi.</p>
+                    <p style={{ fontSize: '13px', fontWeight: '800', marginTop: '4px' }}>Dr. M.G.R. Nagar, HOSUR - 635 130, Krishnagiri Dt., Tamil Nadu, India.</p>
+                    <p style={{ fontSize: '11px', margin: '0' }}>Ph: 04344 - 260570, 261001, 002, 003, 020  Fax: 04344 - 260573</p>
+                    <p style={{ fontSize: '11px', margin: '0' }}>E-mail: principal@adhiyamaan.ac.in  Website: www.adhiyamaan.ac.in</p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>
+                   <div>S.No : {pdfData.auth_code || '---'}</div>
+                   <div style={{ textAlign: 'right' }}>
+                      Admission No. : <span style={{ borderBottom: '1px solid #000', padding: '0 10px' }}>{pdfData.admissionNo || '---'}</span><br/>
+                      UMIS ID. : <span style={{ borderBottom: '1px solid #000', padding: '0 10px' }}>{pdfData.umisNo || '---'}</span>
+                   </div>
+                </div>
+                <h2 style={{ textAlign: 'center', fontSize: '22px', fontWeight: 'bold', marginBottom: '12px', textDecoration: 'underline' }}>TRANSFER CERTIFICATE</h2>
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #000', fontSize: '14px' }}>
+                  <tbody>
+                    {[
+                      { l: '1.', q: 'Name of the Student', v: pdfData.studentName },
+                      { l: '2.', q: 'Name of the Father / Guardian', v: pdfData.fatherName },
+                      { l: '3.', q: 'Nationality, Religion and Caste', v: `${pdfData.nationality || 'INDIAN'}, ${pdfData.religion || '---'} & ${pdfData.caste || '---'}` },
+                      { l: '4.', q: 'Date of Birth in words as entered in the Admission Register', v: dateToWords(pdfData.dob) },
+                      { l: '5.', q: 'Date of Admission', v: pdfData.dateOfAdmission },
+                      { l: '6.', q: 'Course to which the student was Admitted', v: pdfData.course },
+                      { l: '7.', q: 'Branch of Study', v: pdfData.branch },
+                      { l: '8.', q: 'Whether the Course has been completed (or) not', v: (pdfData.tcCompleted || '---').toUpperCase() },
+                      { l: '9.', q: 'Medium of Instruction', v: (pdfData.mediumOfInstruction || 'ENGLISH').toUpperCase() },
+                      { l: '10.', q: 'Whether Qualified for promotion to a higher class (or) not', v: (pdfData.tcPromotion || '---').toUpperCase() },
+                      { l: '11.', q: 'Whether the student has paid all the fees due to the college', v: (pdfData.tcFeesPaid || '---').toUpperCase() },
+                      { l: '12.', q: 'Date on which the Student actually left the College', v: pdfData.tcLeftDate },
+                      { l: '13.', q: 'Date on which application for Transfer Certificate was made', v: pdfData.tcApplyDate },
+                      { l: '14.', q: 'Character and Conduct', v: (pdfData.tcConduct || 'GOOD').toUpperCase() },
+                      { l: '15.', q: 'Scholarship', v: pdfData.tcScholarship === 'yes' ? `YES (${pdfData.tcScholarshipScheme || '---'})` : 'NO' }
+                    ].map((row, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #000' }}>
+                        <td style={{ width: '40px', padding: '5px 10px', borderRight: '1px solid #000', fontWeight: 'bold' }}>{row.l}</td>
+                        <td style={{ width: '400px', padding: '5px 10px', borderRight: '2px solid #000', fontWeight: 'bold' }}>{row.q}</td>
+                        <td style={{ padding: '5px 10px', fontWeight: '900' }}>{row.v || '---'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontWeight: 'bold', fontSize: '15px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <p>Jr. Asst</p>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ marginBottom: '4px' }}>Principal</p>
+                    <div style={{ fontSize: '9px', padding: '4px 8px', border: '1px solid #059669', color: '#059669', borderRadius: '4px' }}>DIGITALLY SIGNED</div>
+                  </div>
+                </div>
+                <div style={{ marginTop: '50px', borderTop: '1px dashed #cbd5e1', paddingTop: '16px', textAlign: 'center' }}>
+                   <p style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', fontStyle: 'italic' }}>Note: This is a system generated Transfer Certificate. No physical seal or signature is required for its validity as per institutional digital record policy.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {downloadProgress.active && (
+            <div className="modal-overlay" style={{ zIndex: 10000 }}>
+              <div className="card text-center py-10 px-20">
+                <ShieldCheck size={48} className="text-blue-600 mb-4 mx-auto" />
+                <h2 className="text-2xl font-bold mb-2">Generating Batch Archive</h2>
+                <p className="text-slate-500 mb-8">Processing {downloadProgress.current} of {downloadProgress.total} certificates...</p>
+                <div style={{ width: '100%', height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ width: `${(downloadProgress.current / downloadProgress.total) * 100}%`, height: '100%', background: '#2563eb', transition: 'width 0.3s ease' }} />
+                </div>
+              </div>
             </div>
           )}
         </div>

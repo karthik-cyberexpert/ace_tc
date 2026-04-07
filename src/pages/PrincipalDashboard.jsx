@@ -3,31 +3,43 @@ import { LayoutDashboard, ShieldCheck, PieChart, LogOut, ChevronRight, CheckCirc
 
 const PrincipalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Overview')
-  const [approvals, setApprovals] = useState([]);
-  const [showDocumentPreview, setShowDocumentPreview] = useState(false);
-  const [approvalPage, setApprovalPage] = useState(1)
-  const rowsPerPage = 10
+  const [allCertificates, setAllCertificates] = useState([]);
+  const [approvalPage, setApprovalPage] = useState(1);
+  const [reportsPage, setReportsPage] = useState(1);
+  const rowsPerPage = 10;
 
   const [stats, setStats] = useState([
-    { label: 'Pending Signature', value: 0, color: '#f59e0b', key: 'AWAITING AUTH' },
-    { label: 'Authorized Records', value: 0, color: '#10b981', key: 'ISSUED' },
-    { label: 'Pending Distribution', value: 0, color: '#6366f1', key: 'READY' }
-  ])
-  const [selectedApproval, setSelectedApproval] = useState(null)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [bulkSelection, setBulkSelection] = useState(new Set())
-  const [showFilterPanel, setShowFilterPanel] = useState(false)
-  const [approvalSearch, setApprovalSearch] = useState('')
-  const [approvalFilters, setApprovalFilters] = useState({ course: '', branch: '', batch: '' })
+    { label: 'Pending Signature', value: 0, color: '#f59e0b' },
+    { label: 'Authorized Records', value: 0, color: '#10b981' },
+    { label: 'Pending Distribution', value: 0, color: '#6366f1' }
+  ]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [bulkSelection, setBulkSelection] = useState(new Set());
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [showReportsFilterPanel, setShowReportsFilterPanel] = useState(false);
+  
+  const [approvalSearch, setApprovalSearch] = useState('');
+  const [approvalFilters, setApprovalFilters] = useState({ course: '', branch: '', batch: '' });
+  
+  const [reportsSearch, setReportsSearch] = useState('');
+  const [reportsFilters, setReportsFilters] = useState({ course: '', branch: '', batch: '' });
 
-  const filteredApprovals = approvals.filter(a => {
-    const term = (a.studentName || '').toLowerCase() + (a.registerNo || '').toLowerCase();
-    const searchMatch = term.includes(approvalSearch.toLowerCase());
-    const courseMatch = !approvalFilters.course || a.course === approvalFilters.course;
-    const branchMatch = !approvalFilters.branch || a.branch === approvalFilters.branch;
-    const batchMatch = !approvalFilters.batch || `${a.batchStart}-${a.batchEnd}` === approvalFilters.batch;
-    return searchMatch && courseMatch && branchMatch && batchMatch;
-  });
+  const getFilteredList = (list, search, filters) => {
+    return list.filter(a => {
+      const term = (a.studentName || '').toLowerCase() + (a.registerNo || '').toLowerCase();
+      const searchMatch = term.includes(search.toLowerCase());
+      const courseMatch = !filters.course || a.course === filters.course;
+      const branchMatch = !filters.branch || a.branch === filters.branch;
+      const batchMatch = !filters.batch || `${a.batchStart}-${a.batchEnd}` === filters.batch;
+      return searchMatch && courseMatch && branchMatch && batchMatch;
+    });
+  };
+
+  const pendingEntries = allCertificates.filter(c => c.status === 'AWAITING AUTH');
+  const issuedEntries = allCertificates.filter(c => c.status === 'ISSUED');
+
+  const filteredApprovals = getFilteredList(pendingEntries, approvalSearch, approvalFilters);
+  const filteredReports = getFilteredList(issuedEntries, reportsSearch, reportsFilters);
 
   useEffect(() => {
     fetchApprovals();
@@ -42,7 +54,7 @@ const PrincipalDashboard = () => {
       const authorized = data.filter(c => c.status === 'ISSUED').length;
       const ready = data.filter(c => c.status === 'READY').length;
 
-      setApprovals(pending);
+      setAllCertificates(data);
       setBulkSelection(new Set(pending.map(p => p.id)));
       setStats([
         { label: 'Pending Signature', value: pending.length, color: '#f59e0b' },
@@ -63,7 +75,6 @@ const PrincipalDashboard = () => {
       });
       const data = await response.json();
       if (data.success) {
-        setShowDocumentPreview(false);
         fetchApprovals();
       }
     } catch (err) {
@@ -252,7 +263,7 @@ const PrincipalDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {approvals.slice(0, 5).map((r, i) => (
+                    {pendingEntries.slice(0, 5).map((r, i) => (
                       <tr key={i}>
                         <td className="font-medium text-slate-600">{r.registerNo}</td>
                         <td className="font-bold text-slate-900">{r.studentName}</td>
@@ -262,7 +273,7 @@ const PrincipalDashboard = () => {
                         </td>
                       </tr>
                     ))}
-                    {approvals.length === 0 && (
+                    {pendingEntries.length === 0 && (
                       <tr>
                         <td colSpan="4" className="text-center py-12 text-slate-400 italic">No certificates awaiting your definitive signature today.</td>
                       </tr>
@@ -304,21 +315,21 @@ const PrincipalDashboard = () => {
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Course</label>
                     <select className="input h-10" value={approvalFilters.course} onChange={e => { setApprovalFilters(prev => ({ ...prev, course: e.target.value })); setApprovalPage(1); }}>
                       <option value="">All Courses</option>
-                      {Array.from(new Set(approvals.map(a => a.course).filter(Boolean))).map(c => <option key={c} value={c}>{c}</option>)}
+                      {Array.from(new Set(allCertificates.map(a => a.course).filter(Boolean))).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Branch</label>
                     <select className="input h-10" value={approvalFilters.branch} onChange={e => { setApprovalFilters(prev => ({ ...prev, branch: e.target.value })); setApprovalPage(1); }}>
                       <option value="">All Branches</option>
-                      {Array.from(new Set(approvals.filter(a => !approvalFilters.course || a.course === approvalFilters.course).map(a => a.branch).filter(Boolean))).map(b => <option key={b} value={b}>{b}</option>)}
+                      {Array.from(new Set(allCertificates.filter(a => !approvalFilters.course || a.course === approvalFilters.course).map(a => a.branch).filter(Boolean))).map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                   </div>
                   <div style={{ flex: 1 }}>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Batch</label>
                     <select className="input h-10" value={approvalFilters.batch} onChange={e => { setApprovalFilters(prev => ({ ...prev, batch: e.target.value })); setApprovalPage(1); }}>
                       <option value="">All Batches</option>
-                      {Array.from(new Set(approvals.map(a => `${a.batchStart}-${a.batchEnd}`).filter(b => b !== 'undefined-undefined'))).map(b => <option key={b} value={b}>{b}</option>)}
+                      {Array.from(new Set(allCertificates.map(a => `${a.batchStart}-${a.batchEnd}`).filter(b => b !== 'undefined-undefined'))).map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                   </div>
                   <button className="btn" style={{ marginTop: '18px', background: 'white', border: '1px solid #cbd5e1' }} onClick={() => { setApprovalFilters({ course: '', branch: '', batch: '' }); setApprovalSearch(''); }}>Reset</button>
@@ -393,10 +404,88 @@ const PrincipalDashboard = () => {
           )}
 
           {activeTab === 'Reports' && (
-            <div className="placeholder-card card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '100px 40px', textAlign: 'center' }}>
-              <div style={{ width: '80px', height: '80px', background: '#f8fafc', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1', marginBottom: '24px' }}><PieChart size={40} /></div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Institutional Analytics</h2>
-              <p className="text-slate-400 max-w-sm">The advanced institutional reporting and academy-wide data visualization module is currently being finalized.</p>
+            <div className="data-view card">
+              <div className="view-header mb-6">
+                <div>
+                  <h2 className="text-xl font-bold">Institutional Records</h2>
+                  <p className="text-muted font-small">Archive of authorized Transfer Certificates</p>
+                </div>
+                <div className="header-actions">
+                  <div className="search-input" style={{ width: '220px' }}>
+                    <Search size={18} />
+                    <input type="text" placeholder="Search records..." value={reportsSearch} onChange={e => { setReportsSearch(e.target.value); setReportsPage(1); }} />
+                  </div>
+                  <button className={`btn ${showReportsFilterPanel ? 'btn-primary' : ''}`} style={{ border: '1px solid #e2e8f0', background: showReportsFilterPanel ? '#2563eb' : 'white', color: showReportsFilterPanel ? 'white' : '#64748b' }} onClick={() => setShowReportsFilterPanel(!showReportsFilterPanel)}><Filter size={18} /></button>
+                </div>
+              </div>
+
+              {showReportsFilterPanel && (
+                <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '20px', display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Course</label>
+                    <select className="input h-10" value={reportsFilters.course} onChange={e => { setReportsFilters(prev => ({ ...prev, course: e.target.value })); setReportsPage(1); }}>
+                      <option value="">All Courses</option>
+                      {Array.from(new Set(allCertificates.map(a => a.course).filter(Boolean))).map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Branch</label>
+                    <select className="input h-10" value={reportsFilters.branch} onChange={e => { setReportsFilters(prev => ({ ...prev, branch: e.target.value })); setReportsPage(1); }}>
+                      <option value="">All Branches</option>
+                      {Array.from(new Set(allCertificates.filter(a => !reportsFilters.course || a.course === reportsFilters.course).map(a => a.branch).filter(Boolean))).map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Batch</label>
+                    <select className="input h-10" value={reportsFilters.batch} onChange={e => { setReportsFilters(prev => ({ ...prev, batch: e.target.value })); setReportsPage(1); }}>
+                      <option value="">All Batches</option>
+                      {Array.from(new Set(allCertificates.map(a => `${a.batchStart}-${a.batchEnd}`).filter(b => b !== 'undefined-undefined'))).map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <button className="btn" style={{ marginTop: '18px', background: 'white', border: '1px solid #cbd5e1' }} onClick={() => { setReportsFilters({ course: '', branch: '', batch: '' }); setReportsSearch(''); }}>Reset</button>
+                </div>
+              )}
+
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Reg No</th>
+                    <th>Student Name</th>
+                    <th>Course</th>
+                    <th>Branch</th>
+                    <th>Batch</th>
+                    <th>Auth Code</th>
+                    <th className="text-center" style={{ width: '100px' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReports
+                    .slice((reportsPage - 1) * rowsPerPage, reportsPage * rowsPerPage)
+                    .map((r, i) => (
+                    <tr key={i}>
+                      <td className="font-bold text-slate-600">{r.registerNo}</td>
+                      <td className="font-bold text-slate-900">{r.studentName}</td>
+                      <td className="text-slate-600 font-medium">{r.course || '---'}</td>
+                      <td className="text-slate-600 font-medium">{r.branch || '---'}</td>
+                      <td className="text-slate-500">{`${r.batchStart}-${r.batchEnd}`}</td>
+                      <td className="font-mono text-xs font-bold text-blue-600">{r.auth_code}</td>
+                      <td className="text-center">
+                        <button className="icon-btn" style={{ color: '#64748b' }} onClick={() => window.open(`/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredReports.length === 0 && (
+                    <tr>
+                      <td colSpan="7" className="text-center py-20 text-slate-400 font-medium italic">{(reportsSearch || reportsFilters.course || reportsFilters.branch || reportsFilters.batch) ? 'No institutional records match your current filters.' : 'Institutional Registry: No authorized certificates are currently on record.'}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <Pagination 
+                totalItems={filteredReports.length} 
+                currentPage={reportsPage} 
+                onPageChange={setReportsPage} 
+              />
             </div>
           )}
         </div>

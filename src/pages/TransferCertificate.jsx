@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { ShieldCheck, Printer, Download } from 'lucide-react'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 
 const TransferCertificate = () => {
   const { id } = useParams()
@@ -53,6 +55,15 @@ const TransferCertificate = () => {
     } catch { return dateStr; }
   };
 
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById('tc-document');
+    const canvas = await html2canvas(element, { scale: 2, useCORS: true });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+    pdf.save(`${cert.auth_code || cert.id}.pdf`);
+  };
+
   if (loading) return <div className="flex h-screen items-center justify-center font-bold text-slate-400">LOADING DIGITAL RECORDS...</div>;
   if (!cert) return <div className="flex h-screen items-center justify-center font-bold text-red-400">CERTIFICATE NOT FOUND</div>;
 
@@ -72,7 +83,7 @@ const TransferCertificate = () => {
           <button onClick={() => window.print()} className="btn" style={{ background: '#2563eb', color: 'white', border: 'none', height: '40px', padding: '0 20px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
             <Printer size={16} /> Print TC
           </button>
-          <button className="btn" style={{ background: 'white', color: '#64748b', border: '1px solid #e2e8f0', height: '40px', padding: '0 20px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <button onClick={handleDownloadPDF} className="btn" style={{ background: 'white', color: '#64748b', border: '1px solid #e2e8f0', height: '40px', padding: '0 20px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
             <Download size={16} /> Download PDF
           </button>
         </div>
