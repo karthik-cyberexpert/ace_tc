@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { ShieldCheck, Printer, Download } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
+import { API_BASE_URL } from '../config'
 
 const TransferCertificate = () => {
   const { id } = useParams()
@@ -12,7 +13,7 @@ const TransferCertificate = () => {
   useEffect(() => {
     const fetchCert = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/certificates/${id}`);
+        const response = await fetch(`${API_BASE_URL}/api/certificates/${id}`);
         const data = await response.json();
         setCert(data);
       } catch (err) {

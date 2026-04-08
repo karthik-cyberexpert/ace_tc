@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { LayoutDashboard, Users, UserCog, Database, Settings, LogOut, ChevronRight, Plus, Trash2, Upload, X, Search, FileText, Download, CheckCircle2, AlertCircle, Eye, Edit, Filter, RotateCcw, ShieldCheck } from 'lucide-react'
+import { API_BASE_URL } from '../config'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -58,7 +59,7 @@ const AdminDashboard = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/users');
+      const response = await fetch(API_BASE_URL + '/api/users');
       const data = await response.json();
       setUsers(data);
     } catch (err) {
@@ -68,7 +69,7 @@ const AdminDashboard = () => {
 
   const fetchRecords = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/certificates');
+      const response = await fetch(API_BASE_URL + '/api/certificates');
       const data = await response.json();
       setRecords(data);
     } catch (err) {
@@ -78,7 +79,7 @@ const AdminDashboard = () => {
 
   const fetchStudents = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/students');
+      const response = await fetch(API_BASE_URL + '/api/students');
       const data = await response.json();
       setStudents(data);
     } catch (err) {
@@ -140,7 +141,7 @@ const AdminDashboard = () => {
   const handleResetPassword = async (id) => {
     if (!window.confirm('SECURITY ALERT: Are you sure you want to reset this staff member\'s credentials to the institutional default (password123)?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${id}/reset`, { method: 'POST' });
+      const response = await fetch(`${API_BASE_URL}/api/users/${id}/reset`, { method: 'POST' });
       const data = await response.json();
       if (data.success) {
         alert('Credentials restored to default (password123). Onboarding check cleared.');
@@ -154,8 +155,8 @@ const AdminDashboard = () => {
   const handleUserSubmit = async (e) => {
     e.preventDefault();
     const url = isEditingUser 
-      ? `http://localhost:5000/api/users/${newUser.id}` 
-      : 'http://localhost:5000/api/users';
+      ? `${API_BASE_URL}/api/users/${newUser.id}` 
+      : API_BASE_URL + '/api/users';
     const method = isEditingUser ? 'PUT' : 'POST';
     
     try {
@@ -181,8 +182,8 @@ const AdminDashboard = () => {
     try {
       const method = isEditing ? 'PUT' : 'POST';
       const url = isEditing 
-        ? `http://localhost:5000/api/students/${newRecord.id}`
-        : 'http://localhost:5000/api/students';
+        ? `${API_BASE_URL}/api/students/${newRecord.id}`
+        : API_BASE_URL + '/api/students';
 
       const response = await fetch(url, {
         method,
@@ -255,7 +256,7 @@ const AdminDashboard = () => {
     const validData = uploadData.filter(r => r.errors.length === 0);
     if (validData.length === 0) return alert('No valid records to upload');
     try {
-      const response = await fetch('http://localhost:5000/api/students/bulk', {
+      const response = await fetch(API_BASE_URL + '/api/students/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(validData)
@@ -275,7 +276,7 @@ const AdminDashboard = () => {
   const handleDeleteStudent = async (id) => {
     if (!window.confirm('CRITICAL: Are you sure you want to permanently delete this institutional student record? This action cannot be undone.')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/students/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/api/students/${id}`, { method: 'DELETE' });
       const data = await response.json();
       if (data.success) fetchStudents();
     } catch (err) {
@@ -364,7 +365,7 @@ const AdminDashboard = () => {
   const handleDeleteUser = async (id) => {
     if (!window.confirm('CRITICAL: Are you sure you want to permanently revoke authorization for this staff member? This action cannot be undone.')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/api/users/${id}`, { method: 'DELETE' });
       const data = await response.json();
       if (data.success) fetchUsers();
     } catch (err) {

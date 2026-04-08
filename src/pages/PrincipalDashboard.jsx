@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { LayoutDashboard, ShieldCheck, PieChart, LogOut, ChevronRight, CheckCircle, XCircle, Search, Eye, Download, X, User, Filter } from 'lucide-react'
+import { API_BASE_URL } from '../config'
 
 const PrincipalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Overview')
@@ -47,7 +48,7 @@ const PrincipalDashboard = () => {
 
   const fetchApprovals = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/certificates');
+      const response = await fetch(API_BASE_URL + '/api/certificates');
       const data = await response.json();
       
       const pending = data.filter(c => c.status === 'AWAITING AUTH');
@@ -69,7 +70,7 @@ const PrincipalDashboard = () => {
   const handleAuthorize = async (id) => {
     setIsProcessing(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/certificates/${id}/authorize`, {
+      const response = await fetch(`${API_BASE_URL}/api/certificates/${id}/authorize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -89,7 +90,7 @@ const PrincipalDashboard = () => {
     setIsProcessing(true);
     try {
       await Promise.all(Array.from(bulkSelection).map(id => 
-        fetch(`http://localhost:5000/api/certificates/${id}/authorize`, { method: 'POST' })
+        fetch(`${API_BASE_URL}/api/certificates/${id}/authorize`, { method: 'POST' })
       ));
       fetchApprovals();
       setBulkSelection(new Set());
@@ -103,7 +104,7 @@ const PrincipalDashboard = () => {
   const handleReject = async (id) => {
     if (!window.confirm('Are you sure you want to reject this TC request?')) return;
     try {
-      await fetch(`http://localhost:5000/api/certificates/${id}/reject`, { method: 'POST' });
+      await fetch(`${API_BASE_URL}/api/certificates/${id}/reject`, { method: 'POST' });
       fetchApprovals();
     } catch (err) {
       console.error('Rejection failed:', err);

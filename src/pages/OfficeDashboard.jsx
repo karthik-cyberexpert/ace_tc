@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { LayoutDashboard, Users, ClipboardList, Database, Bell, Search, LogOut, ChevronRight, Plus, Trash2, Upload, X, Download, Check, Eye, Edit, FileUp, Settings, CheckCircle2, AlertCircle, Filter, RotateCcw, ShieldCheck, Printer } from 'lucide-react'
+import { API_BASE_URL } from '../config'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -168,7 +169,7 @@ const OfficeDashboard = () => {
     const validData = uploadData.filter(r => r.errors.length === 0);
     if (validData.length === 0) return alert('No valid records to upload');
     try {
-      const response = await fetch('http://localhost:5000/api/students/bulk', {
+      const response = await fetch(API_BASE_URL + '/api/students/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(validData)
@@ -208,7 +209,7 @@ const OfficeDashboard = () => {
 
   const fetchStudents = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/students');
+      const response = await fetch(API_BASE_URL + '/api/students');
       const data = await response.json();
       setStudents(data);
     } catch (err) {
@@ -218,7 +219,7 @@ const OfficeDashboard = () => {
 
   const fetchRecords = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/certificates');
+      const response = await fetch(API_BASE_URL + '/api/certificates');
       const data = await response.json();
       setRecords(data);
     } catch (err) {
@@ -231,8 +232,8 @@ const OfficeDashboard = () => {
     try {
       const method = isEditing ? 'PUT' : 'POST';
       const url = isEditing 
-        ? `http://localhost:5000/api/students/${newStudent.id}`
-        : 'http://localhost:5000/api/students';
+        ? `${API_BASE_URL}/api/students/${newStudent.id}`
+        : API_BASE_URL + '/api/students';
 
       const response = await fetch(url, {
         method,
@@ -267,7 +268,7 @@ const OfficeDashboard = () => {
         ...tcFormData[s.registerNo]
       }));
 
-      const response = await fetch('http://localhost:5000/api/certificates/bulk', {
+      const response = await fetch(API_BASE_URL + '/api/certificates/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -291,7 +292,7 @@ const OfficeDashboard = () => {
   const handleDeleteStudent = async (id) => {
     if (!window.confirm('CRITICAL: Are you sure you want to permanently delete this institutional student record? This action cannot be undone.')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/students/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE_URL}/api/students/${id}`, { method: 'DELETE' });
       const data = await response.json();
       if (data.success) fetchStudents();
     } catch (err) {
