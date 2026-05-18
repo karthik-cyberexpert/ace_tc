@@ -1344,7 +1344,7 @@ const AdminDashboard = () => {
               </div>
               
               {isEditingUser && (
-                <div className="mb-6 p-4" style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <div className="p-4" style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '28px' }}>
                   <p className="text-xs font-medium text-slate-500 mb-3">Institutional Security Actions</p>
                   <button 
                     type="button" 
@@ -1359,7 +1359,7 @@ const AdminDashboard = () => {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button type="button" className="btn" style={{ flex: 1, border: '1px solid #e2e8f0', height: '48px', borderRadius: '12px' }} onClick={() => { setShowUserModal(false); setIsEditingUser(false); }}>Discard Changes</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1, height: '48px', borderRadius: '12px', fontWeight: '700' }}>{isEditingUser ? 'Sync Staff Profile' : 'Authorize Staff'}</button>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1, height: '48px', borderRadius: '12px', fontWeight: '700' }}>{isEditingUser ? 'Save Changes' : 'Authorize Staff'}</button>
               </div>
             </form>
           </div>

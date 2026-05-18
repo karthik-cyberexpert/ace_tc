@@ -1,4 +1,4 @@
-import { ArrowLeft, Eye, EyeOff, ShieldCheck, Lock, Shield, ChevronRight } from 'lucide-react'
+import { Eye, EyeOff, ShieldCheck, Lock, Shield, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { API_BASE_URL } from '../config'
 
@@ -78,12 +78,7 @@ const Login = () => {
 
   return (
     <div className="login-container">
-      <div className="top-nav">
-        <a href="/" className="back-link">
-          <ArrowLeft size={16} />
-          <span>Back to home</span>
-        </a>
-      </div>
+
 
       <div className="login-card card">
         {!isBoarding ? (
