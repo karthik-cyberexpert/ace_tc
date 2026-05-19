@@ -25,6 +25,14 @@ const PrincipalDashboard = () => {
   const [reportsSearch, setReportsSearch] = useState('');
   const [reportsFilters, setReportsFilters] = useState({ course: '', branch: '', batch: '' });
 
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: '', id: null, bulk: false });
+  const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+
+  const showNotification = (msg, type = 'success') => {
+    setNotification({ show: true, message: msg, type });
+    setTimeout(() => setNotification({ show: false, message: '', type: 'success' }), 3000);
+  };
+
   const getFilteredList = (list, search, filters) => {
     return list.filter(a => {
       const term = (a.studentName || '').toLowerCase() + (a.registerNo || '').toLowerCase();
@@ -77,16 +85,18 @@ const PrincipalDashboard = () => {
       const data = await response.json();
       if (data.success) {
         fetchApprovals();
+        showNotification('Certificate approved successfully');
       }
     } catch (err) {
       console.error('Authorization failed:', err);
+      showNotification('Authorization failed', 'error');
     } finally {
       setIsProcessing(false);
+      setConfirmModal({ isOpen: false, type: '', id: null, bulk: false });
     }
   }
 
   const handleBulkApprove = async () => {
-    if (bulkSelection.size === 0) return alert('Select students to approve first.');
     setIsProcessing(true);
     try {
       await Promise.all(Array.from(bulkSelection).map(id => 
@@ -94,22 +104,40 @@ const PrincipalDashboard = () => {
       ));
       fetchApprovals();
       setBulkSelection(new Set());
+      showNotification(`Successfully approved ${bulkSelection.size} certificates`);
     } catch (err) {
       console.error('Bulk Approval failed:', err);
+      showNotification('Bulk approval failed', 'error');
     } finally {
       setIsProcessing(false);
+      setConfirmModal({ isOpen: false, type: '', id: null, bulk: false });
     }
   }
 
   const handleReject = async (id) => {
-    if (!window.confirm('Are you sure you want to reject this TC request?')) return;
+    setIsProcessing(true);
     try {
       await fetch(`${API_BASE_URL}/api/certificates/${id}/reject`, { method: 'POST' });
       fetchApprovals();
+      showNotification('Certificate rejected');
     } catch (err) {
       console.error('Rejection failed:', err);
+      showNotification('Rejection failed', 'error');
+    } finally {
+      setIsProcessing(false);
+      setConfirmModal({ isOpen: false, type: '', id: null, bulk: false });
     }
   }
+
+  const confirmAction = () => {
+    if (confirmModal.bulk) {
+      handleBulkApprove();
+    } else if (confirmModal.type === 'approve') {
+      handleAuthorize(confirmModal.id);
+    } else if (confirmModal.type === 'reject') {
+      handleReject(confirmModal.id);
+    }
+  };
 
   const Pagination = ({ totalItems, currentPage, onPageChange }) => {
     const totalPages = Math.ceil(totalItems / rowsPerPage);
@@ -220,6 +248,42 @@ const PrincipalDashboard = () => {
       </aside>
 
       <main className="content">
+        {notification.show && (
+          <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 9999, background: notification.type === 'success' ? '#10b981' : '#ef4444', color: 'white', padding: '12px 24px', borderRadius: '8px', fontWeight: 'bold', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '8px', animation: 'slideIn 0.3s ease-out' }}>
+            {notification.type === 'success' ? <CheckCircle size={20} /> : <XCircle size={20} />}
+            {notification.message}
+          </div>
+        )}
+
+        {confirmModal.isOpen && (
+          <div className="modal-overlay">
+            <div className="modal-container-fixed" style={{ width: '400px', padding: '24px', textAlign: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: confirmModal.type === 'approve' ? '#10b981' : '#ef4444' }}>
+                {confirmModal.type === 'approve' ? <ShieldCheck size={48} /> : <XCircle size={48} />}
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '800', marginBottom: '8px' }}>
+                Confirm {confirmModal.type === 'approve' ? 'Approval' : 'Rejection'}
+              </h3>
+              <p style={{ color: '#64748b', marginBottom: '24px', fontSize: '0.875rem' }}>
+                {confirmModal.bulk 
+                  ? `Are you sure you want to approve ${bulkSelection.size} selected certificates?` 
+                  : `Are you sure you want to ${confirmModal.type} this certificate request?`}
+              </p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+                <button className="btn" style={{ background: '#f1f5f9', color: '#64748b' }} onClick={() => setConfirmModal({ isOpen: false })}>Cancel</button>
+                <button 
+                  className="btn" 
+                  style={{ background: confirmModal.type === 'approve' ? '#10b981' : '#ef4444', color: 'white' }} 
+                  onClick={confirmAction}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? 'Processing...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <header className="content-header">
           <div className="breadcrumb">
             <span className="text-muted">Signature Portal</span>
@@ -300,7 +364,10 @@ const PrincipalDashboard = () => {
                   <button className={`btn ${showFilterPanel ? 'btn-primary' : ''}`} style={{ border: '1px solid #e2e8f0', background: showFilterPanel ? '#2563eb' : 'white', color: showFilterPanel ? 'white' : '#64748b' }} onClick={() => setShowFilterPanel(!showFilterPanel)}><Filter size={18} /></button>
                   <button 
                     className="btn btn-primary" 
-                    onClick={handleBulkApprove} 
+                    onClick={() => {
+                      if (bulkSelection.size === 0) return alert('Select students to approve first.');
+                      setConfirmModal({ isOpen: true, type: 'approve', bulk: true });
+                    }} 
                     disabled={isProcessing || bulkSelection.size === 0}
                     style={{ background: '#10b981', boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2)' }}
                   >
@@ -383,8 +450,8 @@ const PrincipalDashboard = () => {
                       <td className="text-center">
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                           <button className="icon-btn" style={{ color: '#64748b' }} onClick={() => window.open(`/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
-                          <button className="icon-btn" style={{ color: '#10b981' }} onClick={() => handleAuthorize(r.id)} title="Approve TC"><CheckCircle size={20} /></button>
-                          <button className="icon-btn" style={{ color: '#ef4444' }} onClick={() => handleReject(r.id)} title="Reject TC"><XCircle size={20} /></button>
+                          <button className="icon-btn" style={{ color: '#10b981' }} onClick={() => setConfirmModal({ isOpen: true, type: 'approve', id: r.id, bulk: false })} title="Approve TC"><CheckCircle size={20} /></button>
+                          <button className="icon-btn" style={{ color: '#ef4444' }} onClick={() => setConfirmModal({ isOpen: true, type: 'reject', id: r.id, bulk: false })} title="Reject TC"><XCircle size={20} /></button>
                         </div>
                       </td>
                     </tr>
@@ -500,6 +567,9 @@ const PrincipalDashboard = () => {
         .nav-link { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; color: #64748b; font-weight: 600; font-size: 0.875rem; background: transparent; border: none; cursor: pointer; text-align: left; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .nav-link:hover { background: #f1f5f9; color: #0f172a; }
         .nav-link.active { background: #eff6ff; color: #2563eb; }
+        .sidebar-footer { padding: 16px; border-top: 1px solid #e2e8f0; margin-top: auto; }
+        .logout-btn { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; color: #ef4444; font-weight: 700; font-size: 0.875rem; background: transparent; border: none; cursor: pointer; width: 100%; transition: all 0.2s; }
+        .logout-btn:hover { background: #fef2f2; }
         .content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
         .content-header { height: 72px; background: #ffffff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; }
         .avatar { width: 40px; height: 40px; color: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
@@ -525,6 +595,7 @@ const PrincipalDashboard = () => {
         .search-input { display: flex; align-items: center; background: #f1f5f9; border-radius: 12px; padding: 0 16px; height: 44px; gap: 12px; }
         .search-input input { background: transparent; border: none; outline: none; width: 100%; font-size: 0.875rem; color: #334155; font-weight: 500; }
         .header-actions { display: flex; gap: 12px; align-items: center; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}} />
     </div>
   )

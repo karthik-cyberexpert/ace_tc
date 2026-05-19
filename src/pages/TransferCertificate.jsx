@@ -25,6 +25,15 @@ const TransferCertificate = () => {
     fetchCert();
   }, [id]);
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '---';
+    const d = new Date(dateStr);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const dateToWords = (dateStr) => {
     if (!dateStr) return '---';
     try {
@@ -136,17 +145,18 @@ const TransferCertificate = () => {
               { l: '2.', q: 'Name of the Father / Guardian', v: cert.fatherName },
               { l: '3.', q: 'Nationality, Religion and Caste', v: `${cert.nationality || 'INDIAN'}, ${cert.religion || '---'} & ${cert.caste || '---'}` },
               { l: '4.', q: 'Date of Birth in words as entered in the Admission Register', v: dateToWords(cert.dob) },
-              { l: '5.', q: 'Date of Admission', v: cert.dateOfAdmission },
+              { l: '5.', q: 'Date of Admission', v: formatDate(cert.dateOfAdmission) },
               { l: '6.', q: 'Course to which the student was Admitted', v: cert.course },
               { l: '7.', q: 'Branch of Study', v: cert.branch },
               { l: '8.', q: 'Whether the Course has been completed (or) not', v: (cert.tcCompleted || '---').toUpperCase() },
               { l: '9.', q: 'Medium of Instruction', v: (cert.mediumOfInstruction || 'ENGLISH').toUpperCase() },
               { l: '10.', q: 'Whether Qualified for promotion to a higher class (or) not', v: (cert.tcPromotion || '---').toUpperCase() },
               { l: '11.', q: 'Whether the student has paid all the fees due to the college', v: (cert.tcFeesPaid || '---').toUpperCase() },
-              { l: '12.', q: 'Date on which the Student actually left the College', v: cert.tcLeftDate },
-              { l: '13.', q: 'Date on which application for Transfer Certificate was made', v: cert.tcApplyDate },
+              { l: '12.', q: 'Date on which the Student actually left the College', v: formatDate(cert.tcLeftDate) },
+              { l: '13.', q: 'Date on which application for Transfer Certificate was made', v: formatDate(cert.tcApplyDate) },
               { l: '14.', q: 'Character and Conduct', v: (cert.tcConduct || 'GOOD').toUpperCase() },
-              { l: '15.', q: 'Scholarship', v: cert.tcScholarship === 'yes' ? `YES (${cert.tcScholarshipScheme || '---'})` : 'NO' }
+              { l: '15.', q: 'Scholarship', v: (cert.tcScholarship || 'no').toUpperCase() },
+              ...(cert.tcScholarship === 'yes' ? [{ l: '16.', q: 'Name of the Scholarship', v: cert.tcScholarshipScheme || '---' }] : [])
             ].map((row, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid #000' }}>
                       <td style={{ width: '40px', padding: '5px 10px', borderRight: '1px solid #000', fontWeight: 'bold' }}>{row.l}</td>

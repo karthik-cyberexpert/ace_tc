@@ -4,15 +4,16 @@ import AdminDashboard from './pages/AdminDashboard'
 import OfficeDashboard from './pages/OfficeDashboard'
 import PrincipalDashboard from './pages/PrincipalDashboard'
 import TransferCertificate from './pages/TransferCertificate'
+import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Login />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/office" element={<OfficeDashboard />} />
-        <Route path="/principal" element={<PrincipalDashboard />} />
+        <Route path="/admin" element={<ProtectedRoute element={<AdminDashboard />} allowedRole="admin" />} />
+        <Route path="/office" element={<ProtectedRoute element={<OfficeDashboard />} allowedRole="office" />} />
+        <Route path="/principal" element={<ProtectedRoute element={<PrincipalDashboard />} allowedRole="principal" />} />
         <Route path="/tc-view/:id" element={<TransferCertificate />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
@@ -21,3 +22,4 @@ function App() {
 }
 
 export default App
+
