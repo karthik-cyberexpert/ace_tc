@@ -2263,6 +2263,10 @@ const OfficeDashboard = () => {
             <div className="flex gap-4 justify-end">
               <button className="btn" onClick={() => setScholarshipModal({ ...scholarshipModal, show: false })}>Cancel</button>
               <button className="btn btn-primary" onClick={() => {
+                if (!scholarshipModal.name || !scholarshipModal.name.trim()) {
+                  alert('Scholarship scheme name is required.');
+                  return;
+                }
                 setTcFormData(prev => ({
                   ...prev,
                   [scholarshipModal.regNo]: { ...prev[scholarshipModal.regNo], tcScholarshipScheme: scholarshipModal.name }

@@ -931,7 +931,8 @@ const AdminDashboard = () => {
                   { l: '12.', q: 'Date on which the Student actually left the College', v: pdfData.tcLeftDate },
                   { l: '13.', q: 'Date on which application for Transfer Certificate was made', v: pdfData.tcApplyDate },
                   { l: '14.', q: 'Character and Conduct', v: (pdfData.tcConduct || 'GOOD').toUpperCase() },
-                  { l: '15.', q: 'Scholarship', v: pdfData.tcScholarship === 'yes' ? `YES (${pdfData.tcScholarshipScheme || '---'})` : 'NO' }
+                  { l: '15.', q: 'Scholarship', v: (pdfData.tcScholarship || 'no').toUpperCase() },
+                  ...(pdfData.tcScholarship === 'yes' ? [{ l: '16.', q: 'Name of the Scholarship', v: pdfData.tcScholarshipScheme || '---' }] : [])
                 ].map((row, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid #000' }}>
                     <td style={{ width: '40px', padding: '5px 10px', borderRight: '1px solid #000', fontWeight: 'bold' }}>{row.l}</td>
