@@ -1327,12 +1327,12 @@ const AdminDashboard = () => {
                 <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} />
               </div>
               <div className="form-group mb-4">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Username <span style={{ color: '#dc2626' }}>*</span></label>
-                <input required type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} />
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Username <span style={{ color: '#94a3b8', fontWeight: '400', textTransform: 'none', fontSize: '11px' }}>(optional)</span></label>
+                <input type="text" className="input" style={{ height: '44px', borderRadius: '10px' }} placeholder="Leave blank to auto-generate" value={newUser.username} onChange={e => setNewUser({...newUser, username: e.target.value})} />
               </div>
               <div className="form-group mb-4">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Email Address (Optional)</label>
-                <input type="email" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} />
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Email Address <span style={{ color: '#dc2626' }}>*</span></label>
+                <input required type="email" className="input" style={{ height: '44px', borderRadius: '10px' }} value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} />
               </div>
               <div className="form-group mb-6">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 block">Authorization Role <span style={{ color: '#dc2626' }}>*</span></label>

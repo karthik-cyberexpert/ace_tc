@@ -49,7 +49,11 @@ app.get('/api/users', async (req, res) => {
 });
 
 app.post('/api/users', async (req, res) => {
-  const { name, email, role, username } = req.body;
+  const { name, email, role } = req.body;
+  let { username } = req.body;
+  if (!username || username.trim() === '') {
+    username = (name || '').toLowerCase().replace(/\s+/g, '.') + '.' + Date.now().toString().slice(-4);
+  }
   const defaultPassword = 'password123';
   try {
     const [result] = await pool.query(
