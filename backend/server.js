@@ -13,13 +13,14 @@ const PORT = process.env.VITE_BACKEND_PORT || 5014;
 
 const shortCodes = require('./shortCodes.json');
 
-const generateAuthCode = (s) => {
+const generateAuthCode = (s, certType = 'TC') => {
+  const prefix = certType === 'CC' ? 'CC' : '';
   const courseCode = (s.course || '').replace(/\./g, '').toUpperCase();
   const yearCode = (s.batchStart || '').toString().slice(-2);
   const mappingKey = `${s.course} ${s.branch}`;
   const branchShort = shortCodes[mappingKey] || shortCodes[s.branch] || (s.branch || 'XX').substring(0, 3).toUpperCase();
   const regSuffix = (s.registerNo || '').toString().slice(-3);
-  return `${courseCode}${yearCode}${branchShort}${regSuffix}`;
+  return `${prefix}${courseCode}${yearCode}${branchShort}${regSuffix}`;
 };
 
 // Login Endpoint
@@ -205,7 +206,13 @@ app.get('/api/certificates/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const [rows] = await pool.query(`
-      SELECT c.*, s.name as studentName, s.registerNo, s.course, s.branch, s.batchStart, s.batchEnd, s.admissionNo, s.umisNo, s.fatherName, s.nationality, s.religion, s.caste, s.dob, s.dateOfAdmission, s.mediumOfInstruction 
+      SELECT c.*, s.name as studentName, s.registerNo, 
+             COALESCE(c.override_course, s.course) as course, 
+             COALESCE(c.override_branch, s.branch) as branch, 
+             COALESCE(c.override_batchStart, s.batchStart) as batchStart, 
+             COALESCE(c.override_batchEnd, s.batchEnd) as batchEnd, 
+             COALESCE(c.override_admissionNo, s.admissionNo) as admissionNo, 
+             s.umisNo, s.fatherName, s.nationality, s.religion, s.caste, s.dob, s.dateOfAdmission, s.mediumOfInstruction 
       FROM certificates c 
       JOIN students s ON s.id = c.student_id 
       WHERE c.id = ?`, [id]);
@@ -222,11 +229,17 @@ app.post('/api/certificates', async (req, res) => {
     const [students] = await pool.query('SELECT course, branch, batchStart, registerNo FROM students WHERE id = ?', [c.student_id]);
     if (students.length === 0) return res.status(404).json({ success: false, message: 'Student not found' });
     
-    const auth_code = generateAuthCode(students[0]);
+    const authCodeDetails = {
+      course: c.override_course || students[0].course,
+      branch: c.override_branch || students[0].branch,
+      batchStart: c.override_batchStart || students[0].batchStart,
+      registerNo: students[0].registerNo
+    };
+    const auth_code = generateAuthCode(authCodeDetails, c.cert_type || 'TC');
     
     const [result] = await pool.query(
-      'INSERT INTO certificates (student_id, issue_date, auth_code, status, tcPromotion, tcCompleted, tcFeesPaid, tcLeftDate, tcApplyDate, tcConduct, tcScholarship, tcScholarshipScheme) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [c.student_id, c.issue_date, auth_code, c.status || 'AWAITING AUTH', c.tcPromotion, c.tcCompleted, c.tcFeesPaid, c.tcLeftDate, c.tcApplyDate, c.tcConduct, c.tcScholarship, c.tcScholarshipScheme]
+      'INSERT INTO certificates (student_id, cert_type, issue_date, auth_code, status, tcPromotion, tcCompleted, tcFeesPaid, tcLeftDate, tcApplyDate, tcConduct, tcScholarship, tcScholarshipScheme, ccResultMonthYear, ccConduct, override_course, override_branch, override_admissionNo, override_batchStart, override_batchEnd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [c.student_id, c.cert_type || 'TC', c.issue_date, auth_code, c.status || 'AWAITING AUTH', c.tcPromotion, c.tcCompleted, c.tcFeesPaid, c.tcLeftDate, c.tcApplyDate, c.tcConduct, c.tcScholarship, c.tcScholarshipScheme, c.ccResultMonthYear, c.ccConduct, c.override_course || null, c.override_branch || null, c.override_admissionNo || null, c.override_batchStart || null, c.override_batchEnd || null]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -246,16 +259,23 @@ app.post('/api/certificates/bulk', async (req, res) => {
 
     const values = certs.map(c => {
       const s = studentMap[c.student_id];
-      const auth_code = s ? generateAuthCode(s) : `TC-${Math.random().toString(36).substring(7).toUpperCase()}`;
+      const authCodeDetails = s ? {
+        course: c.override_course || s.course,
+        branch: c.override_branch || s.branch,
+        batchStart: c.override_batchStart || s.batchStart,
+        registerNo: s.registerNo
+      } : null;
+      const auth_code = authCodeDetails ? generateAuthCode(authCodeDetails, c.cert_type || 'TC') : `${c.cert_type || 'TC'}-${Math.random().toString(36).substring(7).toUpperCase()}`;
       return [
-        c.student_id, c.issue_date, auth_code, c.status || 'AWAITING AUTH',
+        c.student_id, c.cert_type || 'TC', c.issue_date, auth_code, c.status || 'AWAITING AUTH',
         c.tcPromotion, c.tcCompleted, c.tcFeesPaid, c.tcLeftDate, c.tcApplyDate,
-        c.tcConduct, c.tcScholarship, c.tcScholarshipScheme || ''
+        c.tcConduct, c.tcScholarship, c.tcScholarshipScheme || '', c.ccResultMonthYear || null, c.ccConduct || null,
+        c.override_course || null, c.override_branch || null, c.override_admissionNo || null, c.override_batchStart || null, c.override_batchEnd || null
       ];
     });
 
     await pool.query(
-      'INSERT INTO certificates (student_id, issue_date, auth_code, status, tcPromotion, tcCompleted, tcFeesPaid, tcLeftDate, tcApplyDate, tcConduct, tcScholarship, tcScholarshipScheme) VALUES ?',
+      'INSERT INTO certificates (student_id, cert_type, issue_date, auth_code, status, tcPromotion, tcCompleted, tcFeesPaid, tcLeftDate, tcApplyDate, tcConduct, tcScholarship, tcScholarshipScheme, ccResultMonthYear, ccConduct, override_course, override_branch, override_admissionNo, override_batchStart, override_batchEnd) VALUES ?',
       [values]
     );
     res.json({ success: true, count: certs.length });

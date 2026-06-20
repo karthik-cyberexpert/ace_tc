@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS students (
 CREATE TABLE IF NOT EXISTS certificates (
   id INT AUTO_INCREMENT PRIMARY KEY,
   student_id INT NOT NULL,
+  cert_type ENUM('TC', 'CC') NOT NULL DEFAULT 'TC',
   issue_date DATE NOT NULL,
   auth_code VARCHAR(100) UNIQUE NOT NULL,
   status VARCHAR(50) NOT NULL,
@@ -44,6 +45,13 @@ CREATE TABLE IF NOT EXISTS certificates (
   tcConduct VARCHAR(255),
   tcScholarship ENUM('yes', 'no') DEFAULT 'no',
   tcScholarshipScheme VARCHAR(255),
+  ccResultMonthYear VARCHAR(255) DEFAULT NULL,
+  ccConduct VARCHAR(255) DEFAULT NULL,
+  override_course VARCHAR(100) DEFAULT NULL,
+  override_branch VARCHAR(100) DEFAULT NULL,
+  override_admissionNo VARCHAR(50) DEFAULT NULL,
+  override_batchStart VARCHAR(10) DEFAULT NULL,
+  override_batchEnd VARCHAR(10) DEFAULT NULL,
   FOREIGN KEY (student_id) REFERENCES students(id)
 );
 

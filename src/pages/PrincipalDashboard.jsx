@@ -323,6 +323,7 @@ const PrincipalDashboard = () => {
                     <tr>
                       <th>Reg No</th>
                       <th>Student Name</th>
+                      <th>Type</th>
                       <th>Request Date</th>
                       <th className="text-center" style={{ width: '120px' }}>Action</th>
                     </tr>
@@ -332,9 +333,14 @@ const PrincipalDashboard = () => {
                       <tr key={i}>
                         <td className="font-medium text-slate-600">{r.registerNo}</td>
                         <td className="font-bold text-slate-900">{r.studentName}</td>
+                        <td>
+                          <span style={{ fontSize: '10px', fontWeight: '800', background: r.cert_type === 'CC' ? '#faf5ff' : '#eff6ff', color: r.cert_type === 'CC' ? '#7c3aed' : '#2563eb', padding: '3px 6px', borderRadius: '4px', border: r.cert_type === 'CC' ? '1px solid #d8b4fe' : '1px solid #bfdbfe' }}>
+                            {r.cert_type || 'TC'}
+                          </span>
+                        </td>
                         <td className="text-slate-500">{r.issue_date}</td>
                         <td className="text-center">
-                          <button className="icon-btn" onClick={() => window.open(`/tc-view/${r.id}`, '_blank')}><Eye size={18} /></button>
+                          <button className="icon-btn" onClick={() => window.open(r.cert_type === 'CC' ? `/cc-view/${r.id}` : `/tc-view/${r.id}`, '_blank')}><Eye size={18} /></button>
                         </td>
                       </tr>
                     ))}
@@ -419,6 +425,7 @@ const PrincipalDashboard = () => {
                     </th>
                     <th>Reg No</th>
                     <th>Student Name</th>
+                    <th>Type</th>
                     <th>Course</th>
                     <th>Branch</th>
                     <th>Batch</th>
@@ -444,14 +451,19 @@ const PrincipalDashboard = () => {
                       </td>
                       <td className="font-bold text-slate-600">{r.registerNo}</td>
                       <td className="font-bold text-slate-900">{r.studentName}</td>
+                      <td>
+                        <span style={{ fontSize: '10px', fontWeight: '800', background: r.cert_type === 'CC' ? '#faf5ff' : '#eff6ff', color: r.cert_type === 'CC' ? '#7c3aed' : '#2563eb', padding: '4px 8px', borderRadius: '6px', border: r.cert_type === 'CC' ? '1px solid #d8b4fe' : '1px solid #bfdbfe' }}>
+                          {r.cert_type || 'TC'}
+                        </span>
+                      </td>
                       <td className="text-slate-600 font-medium">{r.course || '---'}</td>
                       <td className="text-slate-600 font-medium">{r.branch || '---'}</td>
                       <td className="text-slate-500">{`${r.batchStart}-${r.batchEnd}`}</td>
                       <td className="text-center">
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                          <button className="icon-btn" style={{ color: '#64748b' }} onClick={() => window.open(`/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
-                          <button className="icon-btn" style={{ color: '#10b981' }} onClick={() => setConfirmModal({ isOpen: true, type: 'approve', id: r.id, bulk: false })} title="Approve TC"><CheckCircle size={20} /></button>
-                          <button className="icon-btn" style={{ color: '#ef4444' }} onClick={() => setConfirmModal({ isOpen: true, type: 'reject', id: r.id, bulk: false })} title="Reject TC"><XCircle size={20} /></button>
+                          <button className="icon-btn" style={{ color: '#64748b' }} onClick={() => window.open(r.cert_type === 'CC' ? `/cc-view/${r.id}` : `/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
+                          <button className="icon-btn" style={{ color: '#10b981' }} onClick={() => setConfirmModal({ isOpen: true, type: 'approve', id: r.id, bulk: false })} title={`Approve ${r.cert_type || 'TC'}`}><CheckCircle size={20} /></button>
+                          <button className="icon-btn" style={{ color: '#ef4444' }} onClick={() => setConfirmModal({ isOpen: true, type: 'reject', id: r.id, bulk: false })} title={`Reject ${r.cert_type || 'TC'}`}><XCircle size={20} /></button>
                         </div>
                       </td>
                     </tr>
@@ -519,6 +531,7 @@ const PrincipalDashboard = () => {
                   <tr>
                     <th>Reg No</th>
                     <th>Student Name</th>
+                    <th>Type</th>
                     <th>Course</th>
                     <th>Branch</th>
                     <th>Batch</th>
@@ -533,12 +546,17 @@ const PrincipalDashboard = () => {
                     <tr key={i}>
                       <td className="font-bold text-slate-600">{r.registerNo}</td>
                       <td className="font-bold text-slate-900">{r.studentName}</td>
+                      <td>
+                        <span style={{ fontSize: '10px', fontWeight: '800', background: r.cert_type === 'CC' ? '#faf5ff' : '#eff6ff', color: r.cert_type === 'CC' ? '#7c3aed' : '#2563eb', padding: '4px 8px', borderRadius: '6px', border: r.cert_type === 'CC' ? '1px solid #d8b4fe' : '1px solid #bfdbfe' }}>
+                          {r.cert_type || 'TC'}
+                        </span>
+                      </td>
                       <td className="text-slate-600 font-medium">{r.course || '---'}</td>
                       <td className="text-slate-600 font-medium">{r.branch || '---'}</td>
                       <td className="text-slate-500">{`${r.batchStart}-${r.batchEnd}`}</td>
                       <td className="font-mono text-xs font-bold text-blue-600">{r.auth_code}</td>
                       <td className="text-center">
-                        <button className="icon-btn" style={{ color: '#64748b' }} onClick={() => window.open(`/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
+                        <button className="icon-btn" style={{ color: '#64748b' }} onClick={() => window.open(r.cert_type === 'CC' ? `/cc-view/${r.id}` : `/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
                       </td>
                     </tr>
                   ))}

@@ -706,6 +706,7 @@ const AdminDashboard = () => {
                     </th>
                     <th>Reg No</th>
                     <th>Name</th>
+                    <th>Type</th>
                     <th>Course</th>
                     <th>Branch</th>
                     <th>Status</th>
@@ -741,6 +742,11 @@ const AdminDashboard = () => {
                       </td>
                       <td className="font-bold text-slate-600">{r.registerNo || r.reg}</td>
                       <td className="font-bold text-slate-900">{r.studentName || r.name}</td>
+                      <td>
+                        <span style={{ fontSize: '11px', fontWeight: '800', background: r.cert_type === 'CC' ? '#faf5ff' : '#eff6ff', color: r.cert_type === 'CC' ? '#7c3aed' : '#2563eb', padding: '4px 8px', borderRadius: '6px', border: r.cert_type === 'CC' ? '1px solid #d8b4fe' : '1px solid #bfdbfe' }}>
+                          {r.cert_type || 'TC'}
+                        </span>
+                      </td>
                       <td className="text-slate-600 font-medium">{r.course || '---'}</td>
                       <td className="text-slate-600 font-medium">{r.branch || '---'}</td>
                       <td>
@@ -751,9 +757,9 @@ const AdminDashboard = () => {
                       <td className="text-slate-500">{`${r.batchStart}-${r.batchEnd}`}</td>
                       <td className="text-center">
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                          <button className="icon-btn" style={{ color: '#2563eb' }} onClick={() => window.open(`/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
+                          <button className="icon-btn" style={{ color: '#2563eb' }} onClick={() => window.open(r.cert_type === 'CC' ? `/cc-view/${r.id}` : `/tc-view/${r.id}`, '_blank')} title="View Certificate"><Eye size={18} /></button>
                           {r.status === 'ISSUED' && (
-                            <button className="icon-btn" style={{ color: '#10b981' }} onClick={() => handleDownloadPDF(r)} title="Download TC"><Download size={18} /></button>
+                            <button className="icon-btn" style={{ color: '#10b981' }} onClick={() => handleDownloadPDF(r)} title={`Download ${r.cert_type || 'TC'}`}><Download size={18} /></button>
                           )}
                         </div>
                       </td>
@@ -887,74 +893,130 @@ const AdminDashboard = () => {
       {/* Invisible PDF Renderer - Exact clone of TransferCertificate.jsx */}
       {pdfData && (
         <div style={{ position: 'fixed', left: '-10000px', top: 0 }}>
-          <div id="invisible-tc" style={{ 
-            background: 'white', padding: '10px 40px', height: '297mm', width: '210mm', 
-            border: '1px solid #000', color: '#000', position: 'relative', fontFamily: 'Times New Roman, serif',
-            boxSizing: 'border-box', overflow: 'hidden'
-          }}>
-            <div style={{ position: 'relative', marginBottom: '20px', paddingBottom: '8px', borderBottom: '2px solid #000' }}>
-              <div style={{ position: 'absolute', left: '0', top: '50%', transform: 'translateY(-50%)', width: '75px', height: '75px', display: 'flex', alignItems: 'center' }}>
-                <img src="/logo.png" alt="ACE Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+          {pdfData.cert_type === 'CC' ? (
+            <div id="invisible-tc" style={{ 
+              background: 'white', padding: '50px 60px', height: '297mm', width: '210mm', 
+              border: '1px solid #000', color: '#000', position: 'relative', fontFamily: 'Times New Roman, serif',
+              boxSizing: 'border-box', overflow: 'hidden'
+            }}>
+              {/* Double Border Frame */}
+              <div style={{ position: 'absolute', top: '20px', bottom: '20px', left: '20px', right: '20px', border: '1px solid #000', pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', top: '24px', bottom: '24px', left: '24px', right: '24px', border: '1px solid #000', pointerEvents: 'none' }} />
+
+              {/* Institution Header */}
+              <div style={{ position: 'relative', marginBottom: '40px', paddingBottom: '16px', borderBottom: '2px solid #000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: '85px', height: '85px', display: 'flex', alignItems: 'center', marginRight: '20px' }}>
+                  <img src="/logo.png" alt="ACE Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <h1 style={{ fontSize: '22px', color: '#000', fontWeight: '900', margin: '0 0 2px 0', letterSpacing: '0.5px', lineHeight: '1.2' }}>ADHIYAMAAN COLLEGE OF ENGINEERING</h1>
+                  <p style={{ fontWeight: '800', letterSpacing: '1px', fontSize: '13px', color: '#000', margin: '0 0 4px 0' }}>(AN AUTONOMOUS INSTITUTE)</p>
+                  <p style={{ fontSize: '11px', fontWeight: 'bold', margin: '0' }}>Approved by AICTE, New Delhi, Affiliated to Anna University, Chennai</p>
+                  <p style={{ fontSize: '11px', fontWeight: 'bold', margin: '0' }}>Accredited by NBA & NAAC</p>
+                  <p style={{ fontSize: '12px', fontWeight: '800', margin: '4px 0 0 0' }}>Dr. M.G.R. Nagar, HOSUR - 635 130</p>
+                </div>
               </div>
-              <div style={{ textAlign: 'center', paddingLeft: '80px' }}>
-                <h1 style={{ fontSize: '24px', color: '#000', fontWeight: '900', marginBottom: '1px', lineHeight: '1.2' }}>ADHIYAMAAN COLLEGE OF ENGINEERING</h1>
-                <p style={{ fontWeight: '800', letterSpacing: '0.1em', fontSize: '14px', color: '#000', marginBottom: '4px' }}>(AUTONOMOUS)</p>
-                <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Affiliated to Anna University- Chennai & Approved by AICTE - New Delhi,</p>
-                <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Accredited by NAAC - UGC - New Delhi.</p>
-                <p style={{ fontSize: '13px', fontWeight: '800', marginTop: '4px' }}>Dr. M.G.R. Nagar, HOSUR - 635 130, Krishnagiri Dt., Tamil Nadu, India.</p>
-                <p style={{ fontSize: '11px', margin: '0' }}>Ph: 04344 - 260570, 261001, 002, 003, 020  Fax: 04344 - 260573</p>
-                <p style={{ fontSize: '11px', margin: '0' }}>E-mail: principal@adhiyamaan.ac.in  Website: www.adhiyamaan.ac.in</p>
+
+              {/* Certificate Title */}
+              <div style={{ textAlign: 'center', margin: '40px 0' }}>
+                <h2 style={{ fontSize: '24px', fontWeight: 'bold', letterSpacing: '1px', textDecoration: 'underline', margin: '0' }}>COURSE COMPLETION CERTIFICATE</h2>
               </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>
-               <div>S.No : {pdfData.auth_code || '---'}</div>
-               <div style={{ textAlign: 'right' }}>
-                  Admission No. : <span style={{ borderBottom: '1px solid #000', padding: '0 10px' }}>{pdfData.admissionNo || '---'}</span><br/>
-                  UMIS ID. : <span style={{ borderBottom: '1px solid #000', padding: '0 10px' }}>{pdfData.umisNo || '---'}</span>
-               </div>
-            </div>
-            <h2 style={{ textAlign: 'center', fontSize: '22px', fontWeight: 'bold', marginBottom: '12px', textDecoration: 'underline' }}>TRANSFER CERTIFICATE</h2>
-            <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #000', fontSize: '14px' }}>
-              <tbody>
-                {[
-                  { l: '1.', q: 'Name of the Student', v: pdfData.studentName },
-                  { l: '2.', q: 'Name of the Father / Guardian', v: pdfData.fatherName },
-                  { l: '3.', q: 'Nationality, Religion and Caste', v: `${pdfData.nationality || 'INDIAN'}, ${pdfData.religion || '---'} & ${pdfData.caste || '---'}` },
-                  { l: '4.', q: 'Date of Birth in words as entered in the Admission Register', v: dateToWords(pdfData.dob) },
-                  { l: '5.', q: 'Date of Admission', v: pdfData.dateOfAdmission },
-                  { l: '6.', q: 'Course to which the student was Admitted', v: pdfData.course },
-                  { l: '7.', q: 'Branch of Study', v: pdfData.branch },
-                  { l: '8.', q: 'Whether the Course has been completed (or) not', v: (pdfData.tcCompleted || '---').toUpperCase() },
-                  { l: '9.', q: 'Medium of Instruction', v: (pdfData.mediumOfInstruction || 'ENGLISH').toUpperCase() },
-                  { l: '10.', q: 'Whether Qualified for promotion to a higher class (or) not', v: (pdfData.tcPromotion || '---').toUpperCase() },
-                  { l: '11.', q: 'Whether the student has paid all the fees due to the college', v: (pdfData.tcFeesPaid || '---').toUpperCase() },
-                  { l: '12.', q: 'Date on which the Student actually left the College', v: pdfData.tcLeftDate },
-                  { l: '13.', q: 'Date on which application for Transfer Certificate was made', v: pdfData.tcApplyDate },
-                  { l: '14.', q: 'Character and Conduct', v: (pdfData.tcConduct || 'GOOD').toUpperCase() },
-                  { l: '15.', q: 'Scholarship', v: (pdfData.tcScholarship || 'no').toUpperCase() },
-                  ...(pdfData.tcScholarship === 'yes' ? [{ l: '16.', q: 'Name of the Scholarship', v: pdfData.tcScholarshipScheme || '---' }] : [])
-                ].map((row, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #000' }}>
-                    <td style={{ width: '40px', padding: '5px 10px', borderRight: '1px solid #000', fontWeight: 'bold' }}>{row.l}</td>
-                    <td style={{ width: '400px', padding: '5px 10px', borderRight: '2px solid #000', fontWeight: 'bold' }}>{row.q}</td>
-                    <td style={{ padding: '5px 10px', fontWeight: '900' }}>{row.v || '---'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontWeight: 'bold', fontSize: '15px' }}>
-              <div style={{ textAlign: 'center' }}>
-                <p>Jr. Asst</p>
+
+              {/* Certificate Body Paragraphs */}
+              <div style={{ fontSize: '17px', lineHeight: '2.2', textAlign: 'justify', textIndent: '40px', marginTop: '30px' }}>
+                This is to certify that Mr./Ms. <span style={{ fontWeight: 'bold', textDecoration: 'underline' }}>{pdfData.studentName?.toUpperCase()}</span> is a bonafide student of this college and has studied <span style={{ fontWeight: 'bold' }}>{pdfData.course} {pdfData.branch}</span> Degree Course during the period <span style={{ fontWeight: 'bold' }}>{pdfData.batchStart} - {pdfData.batchEnd}</span>.
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ marginBottom: '4px' }}>Principal</p>
-                <div style={{ fontSize: '9px', padding: '4px 8px', border: '1px solid #059669', color: '#059669', borderRadius: '4px' }}>DIGITALLY SIGNED</div>
+
+              <div style={{ fontSize: '17px', lineHeight: '2.2', textAlign: 'justify', textIndent: '40px', marginTop: '20px' }}>
+                Result of Final Semester is awaited, which will be published during the month of <span style={{ fontWeight: 'bold', textDecoration: 'underline' }}>{pdfData.ccResultMonthYear || '---'}</span>.
+              </div>
+
+              <div style={{ fontSize: '17px', lineHeight: '2.2', textAlign: 'justify', textIndent: '40px', marginTop: '20px' }}>
+                His/Her Character and Conduct during the above period was found to be <span style={{ fontWeight: 'bold', textDecoration: 'underline' }}>{pdfData.ccConduct?.toUpperCase() || '---'}</span>.
+              </div>
+
+              {/* Signature & Seal Footer */}
+              <div style={{ marginTop: '120px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontWeight: 'bold', fontSize: '16px' }}>
+                <div>
+                  <p style={{ margin: '0 0 8px 0' }}>Date: {new Date(pdfData.issue_date).toLocaleDateString()}</p>
+                  <p style={{ margin: '0' }}>Seal</p>
+                </div>
+                <div style={{ textAlign: 'center', marginRight: '20px' }}>
+                  <p style={{ margin: '0 0 12px 0', letterSpacing: '0.5px' }}>PRINCIPAL</p>
+                  <div style={{ fontSize: '10px', padding: '6px 12px', border: '1px solid #059669', color: '#059669', borderRadius: '4px', display: 'inline-block', fontWeight: 'bold' }}>DIGITALLY SIGNED</div>
+                </div>
               </div>
             </div>
-            <div style={{ marginTop: '50px', borderTop: '1px dashed #cbd5e1', paddingTop: '16px', textAlign: 'center' }}>
-               <p style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', fontStyle: 'italic' }}>Note: This is a system generated Transfer Certificate. No physical seal or signature is required for its validity as per institutional digital record policy.</p>
+          ) : (
+            <div id="invisible-tc" style={{ 
+              background: 'white', padding: '10px 40px', height: '297mm', width: '210mm', 
+              border: '1px solid #000', color: '#000', position: 'relative', fontFamily: 'Times New Roman, serif',
+              boxSizing: 'border-box', overflow: 'hidden'
+            }}>
+              <div style={{ position: 'relative', marginBottom: '20px', paddingBottom: '8px', borderBottom: '2px solid #000' }}>
+                <div style={{ position: 'absolute', left: '0', top: '50%', transform: 'translateY(-50%)', width: '75px', height: '75px', display: 'flex', alignItems: 'center' }}>
+                  <img src="/logo.png" alt="ACE Logo" style={{ width: '100%', height: 'auto', objectFit: 'contain' }} />
+                </div>
+                <div style={{ textAlign: 'center', paddingLeft: '80px' }}>
+                  <h1 style={{ fontSize: '24px', color: '#000', fontWeight: '900', marginBottom: '1px', lineHeight: '1.2' }}>ADHIYAMAAN COLLEGE OF ENGINEERING</h1>
+                  <p style={{ fontWeight: '800', letterSpacing: '0.1em', fontSize: '14px', color: '#000', marginBottom: '4px' }}>(AUTONOMOUS)</p>
+                  <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Affiliated to Anna University- Chennai & Approved by AICTE - New Delhi,</p>
+                  <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '0' }}>Accredited by NAAC - UGC - New Delhi.</p>
+                  <p style={{ fontSize: '13px', fontWeight: '800', marginTop: '4px' }}>Dr. M.G.R. Nagar, HOSUR - 635 130, Krishnagiri Dt., Tamil Nadu, India.</p>
+                  <p style={{ fontSize: '11px', margin: '0' }}>Ph: 04344 - 260570, 261001, 002, 003, 020  Fax: 04344 - 260573</p>
+                  <p style={{ fontSize: '11px', margin: '0' }}>E-mail: principal@adhiyamaan.ac.in  Website: www.adhiyamaan.ac.in</p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 'bold', marginBottom: '10px' }}>
+                 <div>S.No : {pdfData.auth_code || '---'}</div>
+                 <div style={{ textAlign: 'right' }}>
+                    Admission No. : <span style={{ borderBottom: '1px solid #000', padding: '0 10px' }}>{pdfData.admissionNo || '---'}</span><br/>
+                    UMIS ID. : <span style={{ borderBottom: '1px solid #000', padding: '0 10px' }}>{pdfData.umisNo || '---'}</span>
+                 </div>
+              </div>
+              <h2 style={{ textAlign: 'center', fontSize: '22px', fontWeight: 'bold', marginBottom: '12px', textDecoration: 'underline' }}>TRANSFER CERTIFICATE</h2>
+              <table style={{ width: '100%', borderCollapse: 'collapse', border: '2px solid #000', fontSize: '14px' }}>
+                <tbody>
+                  {[
+                    { l: '1.', q: 'Name of the Student', v: pdfData.studentName },
+                    { l: '2.', q: 'Name of the Father / Guardian', v: pdfData.fatherName },
+                    { l: '3.', q: 'Nationality, Religion and Caste', v: `${pdfData.nationality || 'INDIAN'}, ${pdfData.religion || '---'} & ${pdfData.caste || '---'}` },
+                    { l: '4.', q: 'Date of Birth in words as entered in the Admission Register', v: dateToWords(pdfData.dob) },
+                    { l: '5.', q: 'Date of Admission', v: pdfData.dateOfAdmission },
+                    { l: '6.', q: 'Course to which the student was Admitted', v: pdfData.course },
+                    { l: '7.', q: 'Branch of Study', v: pdfData.branch },
+                    { l: '8.', q: 'Whether the Course has been completed (or) not', v: (pdfData.tcCompleted || '---').toUpperCase() },
+                    { l: '9.', q: 'Medium of Instruction', v: (pdfData.mediumOfInstruction || 'ENGLISH').toUpperCase() },
+                    { l: '10.', q: 'Whether Qualified for promotion to a higher class (or) not', v: (pdfData.tcPromotion || '---').toUpperCase() },
+                    { l: '11.', q: 'Whether the student has paid all the fees due to the college', v: (pdfData.tcFeesPaid || '---').toUpperCase() },
+                    { l: '12.', q: 'Date on which the Student actually left the College', v: pdfData.tcLeftDate },
+                    { l: '13.', q: 'Date on which application for Transfer Certificate was made', v: pdfData.tcApplyDate },
+                    { l: '14.', q: 'Character and Conduct', v: (pdfData.tcConduct || 'GOOD').toUpperCase() },
+                    { l: '15.', q: 'Scholarship', v: (pdfData.tcScholarship || 'no').toUpperCase() },
+                    ...(pdfData.tcScholarship === 'yes' ? [{ l: '16.', q: 'Name of the Scholarship', v: pdfData.tcScholarshipScheme || '---' }] : [])
+                  ].map((row, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #000' }}>
+                      <td style={{ width: '40px', padding: '5px 10px', borderRight: '1px solid #000', fontWeight: 'bold' }}>{row.l}</td>
+                      <td style={{ width: '400px', padding: '5px 10px', borderRight: '2px solid #000', fontWeight: 'bold' }}>{row.q}</td>
+                      <td style={{ padding: '5px 10px', fontWeight: '900' }}>{row.v || '---'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontWeight: 'bold', fontSize: '15px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <p>Jr. Asst</p>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ marginBottom: '4px' }}>Principal</p>
+                  <div style={{ fontSize: '9px', padding: '4px 8px', border: '1px solid #059669', color: '#059669', borderRadius: '4px' }}>DIGITALLY SIGNED</div>
+                </div>
+              </div>
+              <div style={{ marginTop: '50px', borderTop: '1px dashed #cbd5e1', paddingTop: '16px', textAlign: 'center' }}>
+                 <p style={{ fontSize: '10px', color: '#64748b', fontWeight: '700', fontStyle: 'italic' }}>Note: This is a system generated Transfer Certificate. No physical seal or signature is required for its validity as per institutional digital record policy.</p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 

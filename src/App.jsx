@@ -4,6 +4,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import OfficeDashboard from './pages/OfficeDashboard'
 import PrincipalDashboard from './pages/PrincipalDashboard'
 import TransferCertificate from './pages/TransferCertificate'
+import CourseCompletionCertificate from './pages/CourseCompletionCertificate'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
         <Route path="/office" element={<ProtectedRoute element={<OfficeDashboard />} allowedRole="office" />} />
         <Route path="/principal" element={<ProtectedRoute element={<PrincipalDashboard />} allowedRole="principal" />} />
         <Route path="/tc-view/:id" element={<TransferCertificate />} />
+        <Route path="/cc-view/:id" element={<CourseCompletionCertificate />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
